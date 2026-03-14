@@ -5,6 +5,8 @@ import { LotteryAnimation } from "../components/LotteryAnimation";
 import { DishContextMenu } from "../components/DishContextMenu";
 import { Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
+import { Dialog, DialogContent } from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
 
 interface Dish {
   name: string;
@@ -91,6 +93,8 @@ export function Home() {
   const [currentCategory, setCurrentCategory] = useState<string>("");
   const [currentDishIndex, setCurrentDishIndex] = useState<number>(0);
   const [isRandomAll, setIsRandomAll] = useState(false);
+  const [randomCount, setRandomCount] = useState<number>(3);
+  const [showCountDialog, setShowCountDialog] = useState(false);
 
   const categories = ["荤菜", "素菜", "汤", "主食", "甜品"] as const;
 
@@ -164,8 +168,14 @@ export function Home() {
   };
 
   const handleRandomAll = () => {
+    setShowCountDialog(true);
+  };
+
+  const handleStartRandomAll = (count: number) => {
+    setRandomCount(count);
     setCurrentCategory("全部");
     setIsRandomAll(true);
+    setShowCountDialog(false);
     setLotteryOpen(true);
   };
 
@@ -177,32 +187,32 @@ export function Home() {
     navigate(`/add-dish?cuisine=${currentCategory}&from=home`);
   };
 
-  const handleAddToBoard = (dish: Dish) => {
-    let newSelection: typeof selectedDishes;
-    if (isRandomAll) {
-      newSelection = {
-        荤菜: [],
-        素菜: [],
-        汤: [],
-        主食: [],
-        甜品: [],
-      };
-      categories.forEach((category) => {
-        const availableDishes = dishLibrary.filter(
-          (d) => d.category === category
-        );
-        if (availableDishes.length > 0) {
-          newSelection[category] = [
-            availableDishes[Math.floor(Math.random() * availableDishes.length)]
-          ];
+  const handleAddMultipleToBoard = (dishes: Dish[]) => {
+    const newSelection = { ...selectedDishes };
+    dishes.forEach((dish) => {
+      const category = dish.category as keyof typeof selectedDishes;
+      if (category && newSelection[category]) {
+        if (!newSelection[category].find(d => d.name === dish.name)) {
+          newSelection[category].push(dish);
         }
-      });
-    } else {
-      newSelection = {
-        ...selectedDishes,
-        [currentCategory]: [...selectedDishes[currentCategory as keyof typeof selectedDishes], dish],
-      };
-    }
+      }
+    });
+    setSelectedDishes(newSelection);
+    
+    const board: Record<string, string[]> = {};
+    categories.forEach((cat) => {
+      if (newSelection[cat].length > 0) {
+        board[cat] = newSelection[cat].map(d => d.name);
+      }
+    });
+    localStorage.setItem("todayBoard", JSON.stringify(board));
+  };
+
+  const handleAddToBoard = (dish: Dish) => {
+    const newSelection = {
+      ...selectedDishes,
+      [currentCategory]: [...selectedDishes[currentCategory as keyof typeof selectedDishes], dish],
+    };
     setSelectedDishes(newSelection);
     
     const board: Record<string, string[]> = {};
@@ -274,17 +284,10 @@ export function Home() {
             onClick={handleRandomAll}
             className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            <Sparkles className="w-5 h-5" />
+            <span className="text-xl">🏮</span>
             <span>一键摇签</span>
           </button>
         )}
-
-        <button
-          onClick={() => navigate("/library")}
-          className="w-full text-orange-500 hover:text-orange-600 py-2 transition-colors"
-        >
-          进入菜库
-        </button>
       </div>
 
       <AddDishSheet
@@ -299,9 +302,40 @@ export function Home() {
         open={lotteryOpen}
         onClose={() => setLotteryOpen(false)}
         onAddToBoard={handleAddToBoard}
+        onAddMultipleToBoard={handleAddMultipleToBoard}
         category={currentCategory}
         availableDishes={getAvailableDishes()}
+        isRandomAll={isRandomAll}
+        randomCount={randomCount}
       />
+
+      <Dialog open={showCountDialog} onOpenChange={setShowCountDialog}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center mb-4">
+            <div className="text-3xl mb-2">🏮</div>
+            <h2 className="text-lg font-semibold">一键摇签</h2>
+            <p className="text-sm text-gray-500 mt-1">请选择要摇的菜品数量</p>
+          </div>
+          <div className="flex justify-center gap-3 mb-4">
+            {[2, 3, 4, 5].map((count) => (
+              <button
+                key={count}
+                onClick={() => handleStartRandomAll(count)}
+                className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-medium transition-colors ${
+                  randomCount === count
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-orange-50"
+                }`}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 text-center">
+            每道菜将来自不同分类
+          </p>
+        </DialogContent>
+      </Dialog>
 
       <DishContextMenu
         open={contextMenuOpen}
