@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { Search, ChevronRight, ChevronDown, Plus, Edit2, Trash2 } from "lucide-react";
+import { Input } from "../components/ui/input";
+import { Button } from "../components/ui/button";
 
 interface Dish {
   name: string;
@@ -40,13 +43,55 @@ const myDishes: Dish[] = [
 ];
 
 export function Library() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"system" | "my">("system");
   const [expandedCuisines, setExpandedCuisines] = useState<Set<string>>(
     new Set(["川菜", "家常菜", "我宝心头爱", "减脂餐"])
   );
+  const [myDishesList, setMyDishesList] = useState<Dish[]>(myDishes);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
 
-  const currentDishes = activeTab === "system" ? dishLibrary : myDishes;
+  useEffect(() => {
+    const savedDishes = localStorage.getItem("myDishes");
+    if (savedDishes) {
+      const parsed = JSON.parse(savedDishes);
+      const combined = [...myDishes, ...parsed];
+      setMyDishesList(combined);
+    }
+  }, [activeTab]);
+
+  const handleRenameGroup = (oldGroup: string) => {
+    const trimmed = editingGroupName.trim();
+    if (!trimmed || trimmed === oldGroup) {
+      setEditingGroup(null);
+      return;
+    }
+    
+    const savedDishes = localStorage.getItem("myDishes");
+    if (savedDishes) {
+      const dishes = JSON.parse(savedDishes);
+      const updated = dishes.map((d: Dish) => 
+        d.cuisine === oldGroup ? { ...d, cuisine: trimmed, group: trimmed } : d
+      );
+      localStorage.setItem("myDishes", JSON.stringify(updated));
+      
+      const combined = myDishesList.map(d => 
+        d.group === oldGroup ? { ...d, group: trimmed, cuisine: trimmed } : d
+      );
+      setMyDishesList(combined);
+      
+      const newExpanded = new Set(expandedCuisines);
+      newExpanded.delete(oldGroup);
+      newExpanded.add(trimmed);
+      setExpandedCuisines(newExpanded);
+    }
+    
+    setEditingGroup(null);
+  };
+
+  const currentDishes = activeTab === "system" ? dishLibrary : myDishesList;
 
   // 筛选菜品
   const filteredDishes = currentDishes.filter((dish) => {
@@ -81,8 +126,7 @@ export function Library() {
   };
 
   const handleEdit = (dish: Dish) => {
-    // TODO: 实现编辑功能
-    alert(`编辑菜品: ${dish.name}`);
+    navigate(`/edit-dish/${dish.name}`);
   };
 
   const handleDelete = (dish: Dish) => {
@@ -92,9 +136,9 @@ export function Library() {
     }
   };
 
-  const handleAddNew = () => {
-    // TODO: 跳转到新增菜品页面
-    alert("跳转到新增菜品页面");
+  const handleAddNew = (group?: string) => {
+    const params = group ? `?cuisine=${encodeURIComponent(group)}` : "";
+    navigate(`/add-dish${params}`);
   };
 
   return (
@@ -169,22 +213,46 @@ export function Library() {
             {groups.map((group) => (
               <div key={group} className="bg-white rounded-lg overflow-hidden shadow-sm">
                 {/* 分组标题 */}
-                <button
-                  onClick={() => toggleGroup(group)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <span className="font-medium text-gray-900">{group}</span>
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <span className="text-sm">
-                      {dishesByGroup[group].length}道
-                    </span>
-                    {expandedCuisines.has(group) ? (
-                      <ChevronDown className="w-5 h-5" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5" />
-                    )}
+                {editingGroup === group ? (
+                  <div className="flex items-center gap-2 p-4">
+                    <Input
+                      value={editingGroupName}
+                      onChange={(e) => setEditingGroupName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleRenameGroup(group)}
+                      autoFocus
+                      className="h-8"
+                    />
+                    <Button size="sm" onClick={() => handleRenameGroup(group)}>确定</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingGroup(null)}>取消</Button>
                   </div>
-                </button>
+                ) : (
+                  <button
+                    onClick={() => toggleGroup(group)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{group}</span>
+                      {activeTab === "my" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingGroup(group); setEditingGroupName(group); }}
+                          className="text-gray-400 hover:text-blue-500 p-1"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <span className="text-sm">
+                        {dishesByGroup[group].length}道
+                      </span>
+                      {expandedCuisines.has(group) ? (
+                        <ChevronDown className="w-5 h-5" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5" />
+                      )}
+                    </div>
+                  </button>
+                )}
 
                 {/* 菜品列表 */}
                 {expandedCuisines.has(group) && (

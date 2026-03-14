@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CategorySlot } from "../components/CategorySlot";
 import { AddDishSheet } from "../components/AddDishSheet";
 import { LotteryAnimation } from "../components/LotteryAnimation";
@@ -12,7 +12,6 @@ interface Dish {
   category: string;
 }
 
-// 示例菜品库
 const dishLibrary: Dish[] = [
   { name: "红烧肉", tags: ["下饭", "经典"], category: "荤菜" },
   { name: "糖醋里脊", tags: ["酸甜", "开胃"], category: "荤菜" },
@@ -28,74 +27,103 @@ const dishLibrary: Dish[] = [
   { name: "米饭", tags: ["主食", "经典"], category: "主食" },
   { name: "馒头", tags: ["主食", "北方"], category: "主食" },
   { name: "炒面", tags: ["主食", "快手"], category: "主食" },
+  { name: "提拉米苏", tags: ["甜品", "经典"], category: "甜品" },
+  { name: "芝士蛋糕", tags: ["甜品", "浓郁"], category: "甜品" },
+  { name: "芒果布丁", tags: ["甜品", "清爽"], category: "甜品" },
+  { name: "冰淇淋", tags: ["甜品", "凉爽"], category: "甜品" },
 ];
 
 export function Home() {
   const navigate = useNavigate();
   const [selectedDishes, setSelectedDishes] = useState<{
-    荤菜: Dish | null;
-    素菜: Dish | null;
-    汤: Dish | null;
-    主食: Dish | null;
+    荤菜: Dish[];
+    素菜: Dish[];
+    汤: Dish[];
+    主食: Dish[];
+    甜品: Dish[];
   }>({
-    荤菜: null,
-    素菜: null,
-    汤: null,
-    主食: null,
+    荤菜: [],
+    素菜: [],
+    汤: [],
+    主食: [],
+    甜品: [],
   });
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [lotteryOpen, setLotteryOpen] = useState(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<string>("");
+  const [currentDishIndex, setCurrentDishIndex] = useState<number>(0);
   const [isRandomAll, setIsRandomAll] = useState(false);
 
-  const categories = ["荤菜", "素菜", "汤", "主食"] as const;
+  const categories = ["荤菜", "素菜", "汤", "主食", "甜品"] as const;
 
-  // 检查桌板是否填满
-  const isBoardFull = categories.every(cat => selectedDishes[cat] !== null);
+  const isBoardFull = categories.every(cat => selectedDishes[cat].length > 0);
+
+  useEffect(() => {
+    const savedBoard = localStorage.getItem("todayBoard");
+    if (savedBoard) {
+      const board = JSON.parse(savedBoard);
+      const newSelection: typeof selectedDishes = {
+        荤菜: [],
+        素菜: [],
+        汤: [],
+        主食: [],
+        甜品: [],
+      };
+      categories.forEach((cat) => {
+        if (board[cat] && Array.isArray(board[cat])) {
+          board[cat].forEach((dishName: string) => {
+            const dish = dishLibrary.find(d => d.name === dishName);
+            if (dish) {
+              newSelection[cat].push(dish);
+            }
+          });
+        }
+      });
+      setSelectedDishes(newSelection);
+    }
+  }, []);
 
   const handleAdd = (category: string) => {
     setCurrentCategory(category);
     setSheetOpen(true);
   };
 
-  const handleRemove = (category: string) => {
+  const handleRemove = (category: string, index: number) => {
     setSelectedDishes((prev) => ({
       ...prev,
-      [category]: null,
+      [category]: prev[category as keyof typeof prev].filter((_, i) => i !== index),
     }));
   };
 
-  const handleDishClick = (category: string) => {
-    // TODO: 跳转到菜品详情页
-    const dish = selectedDishes[category as keyof typeof selectedDishes];
+  const handleDishClick = (category: string, index: number) => {
+    const dish = selectedDishes[category as keyof typeof selectedDishes][index];
     if (dish) {
-      alert(`查看详情：${dish.name}`);
+      navigate(`/dish/${dish.name}`);
     }
   };
 
-  const handleDishLongPress = (category: string) => {
+  const handleDishLongPress = (category: string, index: number) => {
     setCurrentCategory(category);
+    setCurrentDishIndex(index);
     setContextMenuOpen(true);
   };
 
   const handleViewDetail = () => {
-    const dish = selectedDishes[currentCategory as keyof typeof selectedDishes];
-    if (dish) {
-      // TODO: 跳转到菜品详情页
-      alert(`查看详情：${dish.name}`);
+    const dishes = selectedDishes[currentCategory as keyof typeof selectedDishes];
+    if (dishes && dishes.length > currentDishIndex) {
+      navigate(`/dish/${dishes[currentDishIndex].name}`);
     }
   };
 
   const handleReplace = () => {
-    // 打开抽签页面替换当前菜品
     setIsRandomAll(false);
     setLotteryOpen(true);
   };
 
   const handleContextDelete = () => {
-    handleRemove(currentCategory);
+    handleRemove(currentCategory, currentDishIndex);
   };
 
   const handleRandomPick = () => {
@@ -115,39 +143,54 @@ export function Home() {
   };
 
   const handleCreateNew = () => {
-    // TODO: 跳转到新建菜品页面
-    alert("新建菜品功能即将推出");
+    navigate(`/add-dish?cuisine=${currentCategory}&from=home`);
   };
 
   const handleAddToBoard = (dish: Dish) => {
+    let newSelection: typeof selectedDishes;
     if (isRandomAll) {
-      // 一键摇签：为所有类别随机选择
-      const newSelection: any = {};
+      newSelection = {
+        荤菜: [],
+        素菜: [],
+        汤: [],
+        主食: [],
+        甜品: [],
+      };
       categories.forEach((category) => {
         const availableDishes = dishLibrary.filter(
           (d) => d.category === category
         );
         if (availableDishes.length > 0) {
-          newSelection[category] =
-            availableDishes[Math.floor(Math.random() * availableDishes.length)];
+          newSelection[category] = [
+            availableDishes[Math.floor(Math.random() * availableDishes.length)]
+          ];
         }
       });
-      setSelectedDishes(newSelection);
     } else {
-      // 单个菜品添加
-      setSelectedDishes((prev) => ({
-        ...prev,
-        [currentCategory]: dish,
-      }));
+      newSelection = {
+        ...selectedDishes,
+        [currentCategory]: [...selectedDishes[currentCategory as keyof typeof selectedDishes], dish],
+      };
     }
+    setSelectedDishes(newSelection);
+    
+    const board: Record<string, string[]> = {};
+    categories.forEach((cat) => {
+      if (newSelection[cat].length > 0) {
+        board[cat] = newSelection[cat].map(d => d.name);
+      }
+    });
+    localStorage.setItem("todayBoard", JSON.stringify(board));
   };
 
   const handleGenerateMenu = () => {
-    // TODO: 跳转到菜单生成页
-    alert("生成菜单功能即将推出");
+    const menu = Object.values(selectedDishes)
+      .flatMap(d => d)
+      .map(d => d.name);
+    localStorage.setItem("todayMenu", JSON.stringify(menu));
+    navigate("/menu-generate");
   };
 
-  // 获取可用的菜品列表
   const getAvailableDishes = () => {
     if (isRandomAll) {
       return dishLibrary;
@@ -155,23 +198,19 @@ export function Home() {
     return dishLibrary.filter((dish) => dish.category === currentCategory);
   };
 
-  // 获取当前日期
+  const currentDishName = currentCategory ? 
+    selectedDishes[currentCategory as keyof typeof selectedDishes]?.[currentDishIndex]?.name || "" : "";
+
   const today = new Date();
   const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
 
-  // 获取长按菜品名称
-  const currentDishName = currentCategory ? 
-    selectedDishes[currentCategory as keyof typeof selectedDishes]?.name || "" : "";
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white">
-      {/* 头部 */}
       <div className="bg-white px-6 pt-8 pb-6 shadow-sm">
         <div className="text-sm text-gray-500 mb-1">{dateStr}</div>
         <h1 className="text-2xl text-gray-900">今天也要认真吃饭</h1>
       </div>
 
-      {/* 今日桌板 */}
       <div className="px-6 py-6">
         <h2 className="text-lg text-gray-900 mb-4 text-center">今日桌板</h2>
 
@@ -180,17 +219,16 @@ export function Home() {
             <CategorySlot
               key={category}
               category={category}
-              dish={selectedDishes[category]}
+              dishes={selectedDishes[category]}
               onAdd={() => handleAdd(category)}
-              onRemove={() => handleRemove(category)}
-              onClick={() => handleDishClick(category)}
-              onLongPress={() => handleDishLongPress(category)}
+              onRemove={(index) => handleRemove(category, index)}
+              onClick={(index) => handleDishClick(category, index)}
+              onLongPress={(index) => handleDishLongPress(category, index)}
             />
           ))}
         </div>
       </div>
 
-      {/* 操作区 */}
       <div className="px-6 pb-6 space-y-4">
         {isBoardFull ? (
           <button
@@ -218,7 +256,6 @@ export function Home() {
         </button>
       </div>
 
-      {/* 添加菜品 Action Sheet */}
       <AddDishSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
@@ -227,7 +264,6 @@ export function Home() {
         onCreateNew={handleCreateNew}
       />
 
-      {/* 抽签动画 */}
       <LotteryAnimation
         open={lotteryOpen}
         onClose={() => setLotteryOpen(false)}
@@ -236,7 +272,6 @@ export function Home() {
         availableDishes={getAvailableDishes()}
       />
 
-      {/* 菜品操作菜单 */}
       <DishContextMenu
         open={contextMenuOpen}
         onClose={() => setContextMenuOpen(false)}
