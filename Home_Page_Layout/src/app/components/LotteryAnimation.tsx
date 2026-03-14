@@ -19,6 +19,7 @@ interface LotteryAnimationProps {
   availableDishes: Dish[];
   isRandomAll?: boolean;
   randomCount?: number;
+  avoidTags?: string[];
 }
 
 type AnimationPhase = "idle" | "shaking" | "flying" | "revealing" | "result";
@@ -32,6 +33,7 @@ export function LotteryAnimation({
   availableDishes,
   isRandomAll = false,
   randomCount = 3,
+  avoidTags = [],
 }: LotteryAnimationProps) {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<AnimationPhase>("idle");
@@ -39,6 +41,13 @@ export function LotteryAnimation({
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const isMultiMode = isRandomAll && category === "全部";
+
+  const filterDishesByAvoid = (dishes: Dish[]): Dish[] => {
+    if (avoidTags.length === 0) return dishes;
+    return dishes.filter(dish => 
+      !dish.tags.some(tag => avoidTags.includes(tag))
+    );
+  };
 
   useEffect(() => {
     if (open) {
@@ -70,7 +79,7 @@ export function LotteryAnimation({
         
         for (let i = 0; i < randomCount; i++) {
           const targetCat = categories[i % categories.length];
-          const filtered = availableDishes.filter(d => d.category === targetCat);
+          const filtered = filterDishesByAvoid(availableDishes.filter(d => d.category === targetCat));
           if (filtered.length > 0) {
             const randomDish = filtered[Math.floor(Math.random() * filtered.length)];
             results.push(randomDish);
@@ -79,7 +88,7 @@ export function LotteryAnimation({
         }
         
         while (results.length < randomCount) {
-          const remaining = availableDishes.filter(d => !usedCategories.has(d.category));
+          const remaining = filterDishesByAvoid(availableDishes.filter(d => !usedCategories.has(d.category)));
           if (remaining.length > 0) {
             const randomDish = remaining[Math.floor(Math.random() * remaining.length)];
             results.push(randomDish);
@@ -91,9 +100,12 @@ export function LotteryAnimation({
         
         setSelectedDishes(results);
       } else {
-        if (availableDishes.length > 0) {
-          const randomDish = availableDishes[Math.floor(Math.random() * availableDishes.length)];
+        const filtered = filterDishesByAvoid(availableDishes);
+        if (filtered.length > 0) {
+          const randomDish = filtered[Math.floor(Math.random() * filtered.length)];
           setSelectedDishes([randomDish]);
+        } else {
+          setSelectedDishes([]);
         }
       }
       setPhase("result");
@@ -296,6 +308,13 @@ export function LotteryAnimation({
               </div>
             ) : (
               <>
+                <div className="text-center mb-1">
+                  <div className="text-orange-600 flex items-center justify-center gap-1 text-sm">
+                    <Sparkles className="w-4 h-4" />
+                    <span>推荐给你</span>
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                </div>
                 <div className="text-center mb-3">
                   <div className="text-2xl font-semibold text-gray-900">
                     {currentDish.name}

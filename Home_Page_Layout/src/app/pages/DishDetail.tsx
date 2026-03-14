@@ -30,11 +30,47 @@ export function DishDetail() {
     }
     
     const systemDishes: Dish[] = [
-      { name: "宫保鸡丁", cuisine: "川菜", category: "荤菜", tags: ["香辣", "下饭"], notes: "经典川菜" },
-      { name: "麻婆豆腐", cuisine: "川菜", category: "素菜", tags: ["下饭", "麻辣"], notes: "麻辣鲜香" },
-      { name: "红烧肉", cuisine: "家常菜", category: "荤菜", tags: ["经典", "下饭"], notes: "肥而不腻" },
-      { name: "清蒸鱼", cuisine: "粤菜", category: "荤菜", tags: ["清淡", "健康"], notes: "原汁原味" },
-      { name: "紫菜蛋花汤", cuisine: "汤羹", category: "汤", tags: ["清淡", "快手"], notes: "简单易做" },
+      // 川菜
+      { name: "宫保鸡丁", cuisine: "川菜", category: "荤菜", tags: ["香辣", "下饭"], notes: "经典川菜，鸡丁香嫩，花生酥脆" },
+      { name: "麻婆豆腐", cuisine: "川菜", category: "素菜", tags: ["下饭", "麻辣"], notes: "麻辣鲜香，豆腐嫩滑" },
+      { name: "回锅肉", cuisine: "川菜", category: "荤菜", tags: ["下饭", "经典"], notes: "四川传统名菜，香气扑鼻" },
+      { name: "水煮鱼", cuisine: "川菜", category: "荤菜", tags: ["麻辣", "鲜美"], notes: "鱼片鲜嫩，麻辣鲜香" },
+      
+      // 家常菜
+      { name: "红烧肉", cuisine: "家常菜", category: "荤菜", tags: ["经典", "下饭"], notes: "肥而不腻，入口即化" },
+      { name: "糖醋里脊", cuisine: "家常菜", category: "荤菜", tags: ["酸甜", "开胃"], notes: "外酥里嫩，酸甜可口" },
+      { name: "可乐鸡翅", cuisine: "家常菜", category: "荤菜", tags: ["甜香", "下饭"], notes: "鸡翅软烂，甜香入味" },
+      { name: "西红柿炒蛋", cuisine: "家常菜", category: "素菜", tags: ["家常", "简单"], notes: "国民家常菜，营养丰富" },
+      { name: "馒头", cuisine: "家常菜", category: "主食", tags: ["主食", "北方"], notes: "北方传统主食，松软香甜" },
+      { name: "猪肉包子", cuisine: "家常菜", category: "主食", tags: ["主食", "面食"], notes: "皮薄馅大，鲜香多汁" },
+      { name: "蛋炒饭", cuisine: "家常菜", category: "主食", tags: ["主食", "快手"], notes: "粒粒分明，经典快手" },
+      
+      // 粤菜
+      { name: "清蒸鱼", cuisine: "粤菜", category: "荤菜", tags: ["清淡", "健康"], notes: "原汁原味，鲜嫩可口" },
+      { name: "白切鸡", cuisine: "粤菜", category: "荤菜", tags: ["清淡", "原味"], notes: "肉质鲜嫩，保持原香" },
+      { name: "蚝油生菜", cuisine: "粤菜", category: "素菜", tags: ["快手", "清爽"], notes: "爽脆可口，营养健康" },
+      
+      // 鲁菜
+      { name: "葱爆羊肉", cuisine: "鲁菜", category: "荤菜", tags: ["香鲜", "快手"], notes: "羊肉鲜嫩，葱香四溢" },
+      { name: "九转大肠", cuisine: "鲁菜", category: "荤菜", tags: ["经典", "重口"], notes: "色泽红润，酸甜苦辣咸五味" },
+      
+      // 汤羹
+      { name: "紫菜蛋花汤", cuisine: "汤羹", category: "汤", tags: ["清淡", "快手"], notes: "简单易做，营养丰富" },
+      { name: "玉米排骨汤", cuisine: "汤羹", category: "汤", tags: ["滋补", "鲜美"], notes: "汤鲜味美，滋补养生" },
+      { name: "番茄蛋花汤", cuisine: "汤羹", category: "汤", tags: ["开胃", "家常"], notes: "酸甜开胃，老少皆宜" },
+      
+      // 甜品
+      { name: "提拉米苏", cuisine: "甜品", category: "甜品", tags: ["甜品", "经典"], notes: "意大利经典，层次丰富" },
+      { name: "芝士蛋糕", cuisine: "甜品", category: "甜品", tags: ["甜品", "浓郁"], notes: "绵密顺滑，奶香浓郁" },
+      { name: "芒果布丁", cuisine: "甜品", category: "甜品", tags: ["甜品", "清爽"], notes: "清甜爽滑，热带风味" },
+      { name: "冰淇淋", cuisine: "甜品", category: "甜品", tags: ["甜品", "凉爽"], notes: "冰凉甜蜜，夏日必备" },
+      { name: "山药蓝莓", cuisine: "甜品", category: "甜品", tags: ["甜品", "健康"], notes: "健康养生，酸甜可口" },
+      
+      // 其他
+      { name: "蒜蓉西兰花", cuisine: "粤菜", category: "素菜", tags: ["清淡", "营养"], notes: "碧绿爽脆，营养丰富" },
+      { name: "番茄炒蛋", cuisine: "家常菜", category: "素菜", tags: ["家常", "简单"], notes: "经典家常菜，酸甜可口" },
+      { name: "米饭", cuisine: "家常菜", category: "主食", tags: ["主食", "经典"], notes: "粒粒分明，香气扑鼻" },
+      { name: "炒面", cuisine: "家常菜", category: "主食", tags: ["主食", "快手"], notes: "爽滑入味，简单美味" },
     ];
     const found = systemDishes.find(d => d.name === name);
     if (found) {

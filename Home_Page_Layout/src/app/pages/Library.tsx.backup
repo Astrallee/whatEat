@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Search, ChevronRight, ChevronDown, Plus, Edit2, Trash2, X, Heart } from "lucide-react";
@@ -64,7 +63,7 @@ export function Library() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"system" | "my">("system");
   const [expandedCuisines, setExpandedCuisines] = useState<Set<string>>(
-    new Set([])
+    new Set(["川菜", "家常菜", "我宝心头爱", "减脂餐"])
   );
   const [myDishesList, setMyDishesList] = useState<Dish[]>(myDishes);
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
@@ -285,8 +284,7 @@ export function Library() {
       {activeTab === "my" && (
         <div className="px-6 pt-4">
           <button
-            // onClick={handleAddNew}
-            onClick={() => handleAddNew()}
+            onClick={handleAddNew}
             className="w-full bg-white border-2 border-dashed border-orange-300 text-orange-500 rounded-lg p-4 hover:bg-orange-50 transition-colors flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
@@ -302,177 +300,177 @@ export function Library() {
             {activeTab === "my" ? "还没有添加私房菜" : "没有找到相关菜品"}
           </div>
         ) : (
-          <>
-            <div className="space-y-4">
-              {groups.map((group) => (
-                <div key={group} className="bg-white rounded-lg overflow-hidden shadow-sm">
-                  {/* 分组标题 */}
-                  {editingGroup === group ? (
-                    <div className="flex items-center gap-2 p-4">
-                      <Input
-                        value={editingGroupName}
-                        onChange={(e) => setEditingGroupName(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleRenameGroup(group)}
-                        autoFocus
-                        className="h-8"
-                      />
-                      <Button size="sm" onClick={() => handleRenameGroup(group)}>确定</Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingGroup(null)}>取消</Button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => toggleGroup(group)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{group}</span>
-                        {activeTab === "my" && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingGroup(group); setEditingGroupName(group); }}
-                            className="text-gray-400 hover:text-blue-500 p-1"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <span className="text-sm">
-                          {dishesByGroup[group].length}道
-                        </span>
-                        {expandedCuisines.has(group) ? (
-                          <ChevronDown className="w-5 h-5" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5" />
-                        )}
-                      </div>
-                    </button>
-                  )}
-
-                  {/* 菜品列表 */}
-                  {expandedCuisines.has(group) && (
-                    <div className="border-t border-gray-100">
-                      {dishesByGroup[group].map((dish, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 cursor-pointer"
-                          onClick={() => handleDishClick(dish)}
+        <>
+          <div className="space-y-4">
+            {groups.map((group) => (
+              <div key={group} className="bg-white rounded-lg overflow-hidden shadow-sm">
+                {/* 分组标题 */}
+                {editingGroup === group ? (
+                  <div className="flex items-center gap-2 p-4">
+                    <Input
+                      value={editingGroupName}
+                      onChange={(e) => setEditingGroupName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleRenameGroup(group)}
+                      autoFocus
+                      className="h-8"
+                    />
+                    <Button size="sm" onClick={() => handleRenameGroup(group)}>确定</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingGroup(null)}>取消</Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => toggleGroup(group)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{group}</span>
+                      {activeTab === "my" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingGroup(group); setEditingGroupName(group); }}
+                          className="text-gray-400 hover:text-blue-500 p-1"
                         >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="text-gray-900 mb-1">
-                                {dish.name}
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {dish.tags.map((tag, tagIndex) => (
-                                  <span
-                                    key={tagIndex}
-                                    className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded"
-                                  >
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 ml-2">
-                              <button
-                                onClick={() => handleAddToBoard(dish)}
-                                className="text-orange-500 hover:text-orange-600 p-1"
-                                title="添加到桌板"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                              {activeTab === "my" && (
-                                <>
-                                  <button
-                                    onClick={() => handleEdit(dish)}
-                                    className="text-blue-500 hover:text-blue-600 p-1"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(dish)}
-                                    className="text-red-500 hover:text-red-600 p-1"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* 菜品详情弹窗 */}
-            <Dialog open={showDishDetail} onOpenChange={setShowDishDetail}>
-              <DialogContent className="max-w-sm">
-                {selectedDish && (
-                  <>
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-xl font-semibold">{selectedDish.name}</h2>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="flex gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">菜系：</span>
-                          <span className="text-gray-900">{selectedDish.cuisine}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">分类：</span>
-                          <span className="text-gray-900">{selectedDish.category}</span>
-                        </div>
-                      </div>
-
-                      {selectedDish.tags.length > 0 && (
-                        <div>
-                          <div className="text-sm text-gray-500 mb-2">标签</div>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedDish.tags.map((tag, i) => (
-                              <span key={i} className="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-sm">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                       )}
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <span className="text-sm">
+                        {dishesByGroup[group].length}道
+                      </span>
+                      {expandedCuisines.has(group) ? (
+                        <ChevronDown className="w-5 h-5" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5" />
+                      )}
+                    </div>
+                  </button>
+                )}
 
-                      <div>
-                        <div className="text-sm text-gray-500 mb-2">笔记</div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-gray-700 text-sm">
-                          {getDishNotes(selectedDish.name)}
+                {/* 菜品列表 */}
+                {expandedCuisines.has(group) && (
+                  <div className="border-t border-gray-100">
+                    {dishesByGroup[group].map((dish, index) => (
+                      <div
+                        key={index}
+                        className="px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 cursor-pointer"
+                        onClick={() => handleDishClick(dish)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="text-gray-900 mb-1">
+                              {dish.name}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {dish.tags.map((tag, tagIndex) => (
+                                <span
+                                  key={tagIndex}
+                                  className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <button
+                              onClick={() => handleAddToBoard(dish)}
+                              className="text-orange-500 hover:text-orange-600 p-1"
+                              title="添加到桌板"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            {activeTab === "my" && (
+                              <>
+                                <button
+                                  onClick={() => handleEdit(dish)}
+                                  className="text-blue-500 hover:text-blue-600 p-1"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(dish)}
+                                  className="text-red-500 hover:text-red-600 p-1"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* </div> */}
+
+          {/* 菜品详情弹窗 */}
+          <Dialog open={showDishDetail} onOpenChange={setShowDishDetail}>
+            <DialogContent className="max-w-sm">
+              {selectedDish && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold">{selectedDish.name}</h2>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">菜系：</span>
+                        <span className="text-gray-900">{selectedDish.cuisine}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">分类：</span>
+                        <span className="text-gray-900">{selectedDish.category}</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-3 mt-4">
-                      <Button 
-                        className="flex-1" 
-                        onClick={() => {
-                          handleAddToBoard(selectedDish);
-                          setShowDishDetail(false);
-                        }}
-                      >
-                        加入桌板
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setShowDishDetail(false)}
-                      >
-                        关闭
-                      </Button>
+                    {selectedDish.tags.length > 0 && (
+                      <div>
+                        <div className="text-sm text-gray-500 mb-2">标签</div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedDish.tags.map((tag, i) => (
+                            <span key={i} className="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="text-sm text-gray-500 mb-2">笔记</div>
+                      <div className="bg-gray-50 rounded-lg p-3 text-gray-700 text-sm">
+                        {getDishNotes(selectedDish.name)}
+                      </div>
                     </div>
-                  </>
-                )}
-              </DialogContent>
-            </Dialog>
-          </>
-        )}
+                  </div>
+
+                  <div className="flex gap-3 mt-4">
+                    <Button 
+                      className="flex-1" 
+                      onClick={() => {
+                        handleAddToBoard(selectedDish);
+                        setShowDishDetail(false);
+                      }}
+                    >
+                      加入桌板
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowDishDetail(false)}
+                    >
+                      关闭
+                    </Button>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        </>
       </div>
-    </div>
+       
   );
 }

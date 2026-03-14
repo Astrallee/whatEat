@@ -16,8 +16,12 @@ interface UserInfo {
 interface HistoryRecord {
   id: string;
   date: string;
-  dishes: string[];
-  type: string;
+  timeType: string;
+  dishes: {
+    name: string;
+    category: string;
+    tags: string[];
+  }[];
 }
 
 interface FavoriteDish {
@@ -31,33 +35,78 @@ const defaultUserInfo: UserInfo = {
   avatar: "👤",
   nickname: "美食达人",
   signature: "今天也要好好吃饭",
-  decideCount: 156,
+  decideCount: 0,
 };
-
-const mockHistory: HistoryRecord[] = [
-  { id: "1", date: "2024-01-15", dishes: ["宫保鸡丁", "麻婆豆腐", "紫菜蛋花汤"], type: "川菜组合" },
-  { id: "2", date: "2024-01-14", dishes: ["清蒸鱼", "白切鸡", "蚝油生菜"], type: "粤菜组合" },
-  { id: "3", date: "2024-01-13", dishes: ["红烧肉", "糖醋里脊"], type: "家常菜" },
-  { id: "4", date: "2024-01-12", dishes: ["鸡胸肉沙拉", "玉米排骨汤"], type: "减脂餐" },
-];
-
-const mockFavorites: FavoriteDish[] = [
-  { id: "1", name: "宫保鸡丁", cuisine: "川菜", tags: ["香辣", "下饭"] },
-  { id: "2", name: "红烧肉", cuisine: "家常菜", tags: ["经典", "下饭"] },
-  { id: "3", name: "清蒸鱼", cuisine: "粤菜", tags: ["清淡", "健康"] },
-];
 
 export function Profile() {
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState<UserInfo>(defaultUserInfo);
-  const [history, setHistory] = useState<HistoryRecord[]>(mockHistory);
-  const [favorites, setFavorites] = useState<FavoriteDish[]>(mockFavorites);
+  const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteDish[]>([]);
+  const [decideCount, setDecideCount] = useState(0);
+  
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("historyBoard");
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+    
+    const savedFavorites = localStorage.getItem("favorites");
+    if (savedFavorites) {
+      const favList = JSON.parse(savedFavorites);
+      setFavorites(favList.map((name: string, i: number) => ({
+        id: String(i),
+        name,
+        cuisine: "",
+        tags: [],
+      })));
+    }
+
+    const savedDecideCount = localStorage.getItem("decideCount");
+    if (savedDecideCount) {
+      setDecideCount(parseInt(savedDecideCount));
+    } else if (savedHistory) {
+      const historyData = JSON.parse(savedHistory);
+      setDecideCount(historyData.length);
+      localStorage.setItem("decideCount", String(historyData.length));
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const savedHistory = localStorage.getItem("historyBoard");
+        if (savedHistory) {
+          setHistory(JSON.parse(savedHistory));
+        }
+        const savedFavorites = localStorage.getItem("favorites");
+        if (savedFavorites) {
+          const favList = JSON.parse(savedFavorites);
+          setFavorites(favList.map((name: string, i: number) => ({
+            id: String(i),
+            name,
+            cuisine: "",
+            tags: [],
+          })));
+        }
+        const savedDecideCount = localStorage.getItem("decideCount");
+        if (savedDecideCount) {
+          setDecideCount(parseInt(savedDecideCount));
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
   
   const [showHistoryDetail, setShowHistoryDetail] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(null);
+  const [selectedFavoriteDish, setSelectedFavoriteDish] = useState<FavoriteDish | null>(null);
+  const [showFavoriteDetail, setShowFavoriteDetail] = useState(false);
   const [editingNickname, setEditingNickname] = useState(false);
   const [editingSignature, setEditingSignature] = useState(false);
   const [tempNickname, setTempNickname] = useState("");
@@ -69,13 +118,81 @@ export function Profile() {
     { icon: Settings, label: "设置", action: () => setShowSettings(true) },
   ];
 
-  const handleReuseMenu = (dishes: string[]) => {
-    localStorage.setItem("todayMenu", JSON.stringify(dishes));
+  const handleReuseMenu = (dishes: { name: string; category?: string }[] | string[]) => {
+    const board: Record<string, string[]> = {
+      荤菜: [],
+      素菜: [],
+      汤: [],
+      主食: [],
+      甜品: [],
+    };
+    
+    if (typeof dishes[0] === 'string') {
+      (dishes as string[]).forEach((name) => {
+        board["荤菜"].push(name);
+      });
+    } else {
+      (dishes as { name: string; category?: string }[]).forEach((dish) => {
+        const category = dish.category || "荤菜";
+        if (board[category]) {
+          board[category].push(dish.name);
+        }
+      });
+    }
+    
+    localStorage.setItem("todayBoard", JSON.stringify(board));
     navigate("/");
   };
 
+  const getDishNotes = (dishName: string): string => {
+    const notesMap: Record<string, string> = {
+      "宫保鸡丁": "经典川菜，鸡丁香嫩，花生酥脆",
+      "麻婆豆腐": "麻辣鲜香，豆腐嫩滑",
+      "回锅肉": "四川传统名菜，香气扑鼻",
+      "水煮鱼": "鱼片鲜嫩，麻辣鲜香",
+      "红烧肉": "肥而不腻，入口即化",
+      "糖醋里脊": "外酥里嫩，酸甜可口",
+      "可乐鸡翅": "鸡翅软烂，甜香入味",
+      "西红柿炒蛋": "国民家常菜，营养丰富",
+      "馒头": "北方传统主食，松软香甜",
+      "猪肉包子": "皮薄馅大，鲜香多汁",
+      "蛋炒饭": "粒粒分明，经典快手",
+      "清蒸鱼": "原汁原味，鲜嫩可口",
+      "白切鸡": "肉质鲜嫩，保持原香",
+      "蚝油生菜": "爽脆可口，营养健康",
+      "葱爆羊肉": "羊肉鲜嫩，葱香四溢",
+      "九转大肠": "色泽红润，酸甜苦辣咸五味",
+      "紫菜蛋花汤": "简单易做，营养丰富",
+      "玉米排骨汤": "汤鲜味美，滋补养生",
+      "番茄蛋花汤": "酸甜开胃，老少皆宜",
+      "提拉米苏": "意大利经典，层次丰富",
+      "芝士蛋糕": "绵密顺滑，奶香浓郁",
+      "芒果布丁": "清甜爽滑，热带风味",
+      "冰淇淋": "冰凉甜蜜，夏日必备",
+      "山药蓝莓": "健康养生，酸甜可口",
+      "蒜蓉西兰花": "碧绿爽脆，营养丰富",
+      "番茄炒蛋": "经典家常菜，酸甜可口",
+      "米饭": "粒粒分明，香气扑鼻",
+      "炒面": "爽滑入味，简单美味",
+    };
+    return notesMap[dishName] || "美味菜品";
+  };
+
+  const handleFavoriteDishClick = (dish: FavoriteDish) => {
+    setSelectedFavoriteDish(dish);
+    setShowFavoriteDetail(true);
+  };
+
+  const handleRemoveHistory = (id: string) => {
+    const newHistory = history.filter(h => h.id !== id);
+    setHistory(newHistory);
+    localStorage.setItem("historyBoard", JSON.stringify(newHistory));
+  };
+
   const handleRemoveFavorite = (id: string) => {
-    setFavorites(favorites.filter(f => f.id !== id));
+    const newFavorites = favorites.filter(f => f.id !== id);
+    setFavorites(newFavorites);
+    localStorage.setItem("favorites", JSON.stringify(newFavorites.map(f => f.name)));
   };
 
   const handleClearCache = () => {
@@ -155,7 +272,7 @@ export function Profile() {
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex justify-around">
             <div className="text-center">
-              <div className="text-2xl text-gray-900 mb-1">{userInfo.decideCount}</div>
+              <div className="text-2xl text-gray-900 mb-1">{decideCount}</div>
               <div className="text-sm text-gray-500">已决定吃饭</div>
             </div>
             <div className="w-px bg-gray-200"></div>
@@ -198,25 +315,39 @@ export function Profile() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">历史桌板</h2>
           </div>
-          <div className="space-y-3">
-            {history.map((record) => (
-              <div
-                key={record.id}
-                className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-orange-50 transition-colors"
-                onClick={() => setSelectedRecord(record)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm text-gray-500">{record.date}</span>
-                  <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded">{record.type}</span>
+          {history.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              暂无历史记录
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {history.map((record) => (
+                <div
+                  key={record.id}
+                  className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-orange-50 transition-colors"
+                  onClick={() => setSelectedRecord(record)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm text-gray-500">{record.date}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded">{record.timeType}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRemoveHistory(record.id); }}
+                        className="text-red-500 hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {record.dishes.map((dish, i) => (
+                      <span key={i} className="text-sm text-gray-700">{dish.name}{i < record.dishes.length - 1 ? "、" : ""}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {record.dishes.map((dish, i) => (
-                    <span key={i} className="text-sm text-gray-700">{dish}{i < record.dishes.length - 1 ? "、" : ""}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -225,18 +356,20 @@ export function Profile() {
         <DialogContent className="max-w-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">历史菜单详情</h3>
-            <button onClick={() => setSelectedRecord(null)} className="text-gray-400 hover:text-gray-600">
-              <X className="w-5 h-5" />
-            </button>
           </div>
           {selectedRecord && (
             <>
               <div className="text-sm text-gray-500 mb-4">
-                {selectedRecord.date} · {selectedRecord.type}
+                {selectedRecord.date} · {selectedRecord.timeType}
               </div>
               <div className="space-y-2 mb-4">
                 {selectedRecord.dishes.map((dish, i) => (
-                  <div key={i} className="bg-gray-50 p-3 rounded-lg text-gray-700">{dish}</div>
+                  <div key={i} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-700 font-medium">{dish.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{dish.category}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
               <Button className="w-full" onClick={() => handleReuseMenu(selectedRecord.dishes)}>
@@ -264,7 +397,7 @@ export function Profile() {
                 >
                   <div 
                     className="flex-1 cursor-pointer"
-                    onClick={() => handleReuseMenu([dish.name])}
+                    onClick={() => handleFavoriteDishClick(dish)}
                   >
                     <div className="text-gray-900 mb-1">{dish.name}</div>
                     <div className="flex items-center gap-2">
@@ -283,6 +416,49 @@ export function Profile() {
                 </div>
               ))}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 收藏菜品详情弹窗 */}
+      <Dialog open={showFavoriteDetail} onOpenChange={setShowFavoriteDetail}>
+        <DialogContent className="max-w-sm">
+          {selectedFavoriteDish && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">{selectedFavoriteDish.name}</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-orange-50 rounded-lg p-4">
+                  <p className="text-gray-700">{getDishNotes(selectedFavoriteDish.name)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedFavoriteDish.tags.map((tag, i) => (
+                    <span key={i} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1" 
+                    onClick={() => {
+                      handleReuseMenu([selectedFavoriteDish.name]);
+                      setShowFavoriteDetail(false);
+                    }}
+                  >
+                    加入桌板
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleRemoveFavorite(selectedFavoriteDish.id)}
+                  >
+                    取消收藏
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
