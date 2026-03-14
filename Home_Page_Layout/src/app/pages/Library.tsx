@@ -130,9 +130,43 @@ export function Library() {
   };
 
   const handleDelete = (dish: Dish) => {
-    // TODO: 实现删除功能
     if (confirm(`确定要删除"${dish.name}"吗？`)) {
-      alert(`已删除: ${dish.name}`);
+      const savedDishes = localStorage.getItem("myDishes");
+      if (savedDishes) {
+        const dishes = JSON.parse(savedDishes);
+        const filtered = dishes.filter((d: Dish) => d.name !== dish.name);
+        localStorage.setItem("myDishes", JSON.stringify(filtered));
+        setMyDishesList(myDishesList.filter(d => d.name !== dish.name));
+      }
+    }
+  };
+
+  const handleAddToBoard = (dish: Dish) => {
+    const categories = ["荤菜", "素菜", "汤", "主食", "甜品"] as const;
+    let category = dish.category;
+    if (!categories.includes(category as any)) {
+      category = dish.cuisine || "荤菜";
+    }
+    
+    const savedBoard = localStorage.getItem("todayBoard");
+    let board: Record<string, string[]> = savedBoard ? JSON.parse(savedBoard) : {
+      荤菜: [],
+      素菜: [],
+      汤: [],
+      主食: [],
+      甜品: [],
+    };
+    
+    if (!board[category]) {
+      board[category] = [];
+    }
+    
+    if (!board[category].includes(dish.name)) {
+      board[category].push(dish.name);
+      localStorage.setItem("todayBoard", JSON.stringify(board));
+      alert(`已将"${dish.name}"添加到${category}`);
+    } else {
+      alert("该菜品已在桌板中");
     }
   };
 
@@ -279,7 +313,14 @@ export function Library() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-2">
-                            {activeTab === "my" ? (
+                            <button
+                              onClick={() => handleAddToBoard(dish)}
+                              className="text-orange-500 hover:text-orange-600 p-1"
+                              title="添加到桌板"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            {activeTab === "my" && (
                               <>
                                 <button
                                   onClick={() => handleEdit(dish)}
@@ -294,10 +335,6 @@ export function Library() {
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </>
-                            ) : (
-                              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                                {dish.category}
-                              </span>
                             )}
                           </div>
                         </div>
