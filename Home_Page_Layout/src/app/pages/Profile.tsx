@@ -44,6 +44,10 @@ export function Profile() {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [favorites, setFavorites] = useState<FavoriteDish[]>([]);
   const [decideCount, setDecideCount] = useState(0);
+  const [avatarImage, setAvatarImage] = useState<string>("");
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showAvatarCrop, setShowAvatarCrop] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
   
   useEffect(() => {
     const savedHistory = localStorage.getItem("historyBoard");
@@ -69,6 +73,11 @@ export function Profile() {
       const historyData = JSON.parse(savedHistory);
       setDecideCount(historyData.length);
       localStorage.setItem("decideCount", String(historyData.length));
+    }
+
+    const savedAvatar = localStorage.getItem("userAvatar");
+    if (savedAvatar) {
+      setAvatarImage(savedAvatar);
     }
   }, []);
 
@@ -215,13 +224,81 @@ export function Profile() {
     setEditingSignature(false);
   };
 
+  const handleAvatarClick = () => {
+    setShowAvatarPicker(true);
+  };
+
+  const handleOpenImagePicker = async () => {
+    try {
+      const result = await (window as any).openImagePicker();
+      if (result && result.uri) {
+        setSelectedImage(result);
+        setShowAvatarPicker(false);
+        setShowAvatarCrop(true);
+      }
+    } catch (error) {
+      console.error("Failed to open image picker:", error);
+    }
+  };
+
+  const handleAvatarCropConfirm = async () => {
+    if (!selectedImage) return;
+    
+    try {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const x = (img.width - size) / 2;
+        const y = (img.height - size) / 2;
+        
+        canvas.width = 200;
+        canvas.height = 200;
+        
+        if (ctx) {
+          ctx.beginPath();
+          ctx.arc(100, 100, 100, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(img, x, y, size, size, 0, 0, 200, 200);
+          
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          setAvatarImage(dataUrl);
+          localStorage.setItem("userAvatar", dataUrl);
+        }
+        
+        setShowAvatarCrop(false);
+        setSelectedImage(null);
+      };
+      
+      img.src = selectedImage.uri;
+    } catch (error) {
+      console.error("Failed to crop image:", error);
+    }
+  };
+
+  const handleAvatarCropCancel = () => {
+    setShowAvatarCrop(false);
+    setSelectedImage(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 头部 */}
       <div className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 pt-12 pb-8">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-2xl">
-            {userInfo.avatar}
+          <div 
+            className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-2xl overflow-hidden cursor-pointer"
+            onClick={handleAvatarClick}
+          >
+            {avatarImage ? (
+              <img src={avatarImage} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              userInfo.avatar
+            )}
           </div>
           <div className="flex-1">
             {editingNickname ? (
@@ -503,6 +580,60 @@ export function Profile() {
           <Button className="w-full" onClick={() => { alert("感谢您的反馈！"); setShowFeedback(false); }}>
             提交
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* 头像选择弹窗 */}
+      <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
+        <DialogContent className="max-w-sm">
+          <h2 className="text-lg font-semibold mb-4">更换头像</h2>
+          <div className="space-y-3">
+            <Button 
+              className="w-full" 
+              onClick={handleOpenImagePicker}
+            >
+              从相册选择
+            </Button>
+            {avatarImage && (
+              <Button 
+                variant="outline" 
+                className="w-full text-red-500 border-red-200 hover:bg-red-50"
+                onClick={() => {
+                  setAvatarImage("");
+                  localStorage.removeItem("userAvatar");
+                  setShowAvatarPicker(false);
+                }}
+              >
+                删除头像
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 头像裁剪弹窗 */}
+      <Dialog open={showAvatarCrop} onOpenChange={(open) => !open && handleAvatarCropCancel()}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <button onClick={handleAvatarCropCancel} className="text-gray-600">取消</button>
+            <span className="font-medium">裁剪头像</span>
+            <button onClick={handleAvatarCropConfirm} className="text-orange-500 font-medium">完成</button>
+          </div>
+          <div className="relative bg-gray-900 h-80 flex items-center justify-center">
+            {selectedImage && (
+              <div className="relative w-56 h-56">
+                <div className="absolute inset-0 border-2 border-white rounded-full"></div>
+                <img 
+                  src={selectedImage.uri} 
+                  alt="crop" 
+                  className="w-full h-full object-cover rounded-full"
+                />
+              </div>
+            )}
+          </div>
+          <div className="text-center py-3 text-gray-500 text-sm">
+            拖动图片调整位置
+          </div>
         </DialogContent>
       </Dialog>
     </div>
