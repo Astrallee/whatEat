@@ -13,26 +13,41 @@ interface Dish {
 }
 
 const dishLibrary: Dish[] = [
+  // 川菜
   { name: "宫保鸡丁", tags: ["川菜", "香辣"], category: "荤菜", cuisine: "川菜" },
   { name: "麻婆豆腐", tags: ["下饭", "川菜"], category: "素菜", cuisine: "川菜" },
   { name: "回锅肉", tags: ["下饭", "经典"], category: "荤菜", cuisine: "川菜" },
   { name: "水煮鱼", tags: ["麻辣", "鲜美"], category: "荤菜", cuisine: "川菜" },
   
+  // 家常菜
   { name: "西红柿炒蛋", tags: ["家常", "简单"], category: "素菜", cuisine: "家常菜" },
   { name: "可乐鸡翅", tags: ["甜香", "下饭"], category: "荤菜", cuisine: "家常菜" },
   { name: "红烧肉", tags: ["下饭", "经典"], category: "荤菜", cuisine: "家常菜" },
   { name: "糖醋里脊", tags: ["酸甜", "开胃"], category: "荤菜", cuisine: "家常菜" },
+  { name: "馒头", tags: ["主食", "北方"], category: "主食", cuisine: "家常菜" },
+  { name: "猪肉包子", tags: ["主食", "面食"], category: "主食", cuisine: "家常菜" },
+  { name: "蛋炒饭", tags: ["主食", "快手"], category: "主食", cuisine: "家常菜" },
   
+  // 粤菜
   { name: "清蒸鱼", tags: ["清淡", "健康"], category: "荤菜", cuisine: "粤菜" },
   { name: "白切鸡", tags: ["清淡", "原味"], category: "荤菜", cuisine: "粤菜" },
   { name: "蚝油生菜", tags: ["快手", "清爽"], category: "素菜", cuisine: "粤菜" },
   
+  // 鲁菜
   { name: "葱爆羊肉", tags: ["香鲜", "快手"], category: "荤菜", cuisine: "鲁菜" },
   { name: "九转大肠", tags: ["经典", "重口"], category: "荤菜", cuisine: "鲁菜" },
   
+  // 汤羹
   { name: "紫菜蛋花汤", tags: ["清淡", "快手"], category: "汤", cuisine: "汤羹" },
   { name: "玉米排骨汤", tags: ["滋补", "鲜美"], category: "汤", cuisine: "汤羹" },
   { name: "番茄蛋花汤", tags: ["开胃", "家常"], category: "汤", cuisine: "汤羹" },
+  
+  // 甜品
+  { name: "山药蓝莓", tags: ["甜品", "健康"], category: "甜品", cuisine: "甜品" },
+  { name: "提拉米苏", tags: ["甜品", "经典"], category: "甜品", cuisine: "甜品" },
+  { name: "芝士蛋糕", tags: ["甜品", "浓郁"], category: "甜品", cuisine: "甜品" },
+  { name: "芒果布丁", tags: ["甜品", "清爽"], category: "甜品", cuisine: "甜品" },
+  { name: "冰淇淋", tags: ["甜品", "凉爽"], category: "甜品", cuisine: "甜品" },
 ];
 
 // 我的私房菜（示例数据）

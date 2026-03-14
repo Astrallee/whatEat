@@ -13,41 +13,77 @@ interface Dish {
 }
 
 const dishLibrary: Dish[] = [
+  // 荤菜
   { name: "红烧肉", tags: ["下饭", "经典"], category: "荤菜" },
   { name: "糖醋里脊", tags: ["酸甜", "开胃"], category: "荤菜" },
   { name: "宫保鸡丁", tags: ["川菜", "香辣"], category: "荤菜" },
   { name: "清蒸鱼", tags: ["清淡", "健康"], category: "荤菜" },
+  { name: "回锅肉", tags: ["下饭", "经典"], category: "荤菜" },
+  { name: "水煮鱼", tags: ["麻辣", "鲜美"], category: "荤菜" },
+  { name: "可乐鸡翅", tags: ["甜香", "下饭"], category: "荤菜" },
+  { name: "葱爆羊肉", tags: ["香鲜", "快手"], category: "荤菜" },
+  { name: "九转大肠", tags: ["经典", "重口"], category: "荤菜" },
+  { name: "白切鸡", tags: ["清淡", "原味"], category: "荤菜" },
+  // 素菜
   { name: "蒜蓉西兰花", tags: ["清淡", "营养"], category: "素菜" },
   { name: "麻婆豆腐", tags: ["下饭", "川菜"], category: "素菜" },
   { name: "蚝油生菜", tags: ["快手", "清爽"], category: "素菜" },
   { name: "番茄炒蛋", tags: ["家常", "简单"], category: "素菜" },
+  { name: "西红柿炒蛋", tags: ["家常", "简单"], category: "素菜" },
+  // 汤
   { name: "紫菜蛋花汤", tags: ["清淡", "快手"], category: "汤" },
   { name: "玉米排骨汤", tags: ["滋补", "鲜美"], category: "汤" },
   { name: "番茄蛋花汤", tags: ["开胃", "家常"], category: "汤" },
+  // 主食
   { name: "米饭", tags: ["主食", "经典"], category: "主食" },
   { name: "馒头", tags: ["主食", "北方"], category: "主食" },
   { name: "炒面", tags: ["主食", "快手"], category: "主食" },
+  { name: "猪肉包子", tags: ["主食", "面食"], category: "主食" },
+  { name: "蛋炒饭", tags: ["主食", "快手"], category: "主食" },
+  // 甜品
   { name: "提拉米苏", tags: ["甜品", "经典"], category: "甜品" },
   { name: "芝士蛋糕", tags: ["甜品", "浓郁"], category: "甜品" },
   { name: "芒果布丁", tags: ["甜品", "清爽"], category: "甜品" },
   { name: "冰淇淋", tags: ["甜品", "凉爽"], category: "甜品" },
+  { name: "山药蓝莓", tags: ["甜品", "健康"], category: "甜品" },
 ];
 
-export function Home() {
-  const navigate = useNavigate();
-  const [selectedDishes, setSelectedDishes] = useState<{
-    荤菜: Dish[];
-    素菜: Dish[];
-    汤: Dish[];
-    主食: Dish[];
-    甜品: Dish[];
-  }>({
+function loadBoardFromStorage(): typeof initialDishes {
+  const savedBoard = localStorage.getItem("todayBoard");
+  const board = savedBoard ? JSON.parse(savedBoard) : {};
+  const newSelection: typeof initialDishes = {
     荤菜: [],
     素菜: [],
     汤: [],
     主食: [],
     甜品: [],
+  };
+  const categories = ["荤菜", "素菜", "汤", "主食", "甜品"] as const;
+  
+  categories.forEach((cat) => {
+    if (board[cat] && Array.isArray(board[cat])) {
+      board[cat].forEach((dishName: string) => {
+        const dish = dishLibrary.find(d => d.name === dishName);
+        if (dish) {
+          newSelection[cat].push(dish);
+        }
+      });
+    }
   });
+  return newSelection;
+}
+
+const initialDishes = {
+  荤菜: [],
+  素菜: [],
+  汤: [],
+  主食: [],
+  甜品: [],
+};
+
+export function Home() {
+  const navigate = useNavigate();
+  const [selectedDishes, setSelectedDishes] = useState(loadBoardFromStorage);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [lotteryOpen, setLotteryOpen] = useState(false);
@@ -61,28 +97,14 @@ export function Home() {
   const isBoardFull = categories.every(cat => selectedDishes[cat].length > 0);
 
   useEffect(() => {
-    const savedBoard = localStorage.getItem("todayBoard");
-    if (savedBoard) {
-      const board = JSON.parse(savedBoard);
-      const newSelection: typeof selectedDishes = {
-        荤菜: [],
-        素菜: [],
-        汤: [],
-        主食: [],
-        甜品: [],
-      };
-      categories.forEach((cat) => {
-        if (board[cat] && Array.isArray(board[cat])) {
-          board[cat].forEach((dishName: string) => {
-            const dish = dishLibrary.find(d => d.name === dishName);
-            if (dish) {
-              newSelection[cat].push(dish);
-            }
-          });
-        }
-      });
-      setSelectedDishes(newSelection);
-    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setSelectedDishes(loadBoardFromStorage());
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   const handleAdd = (category: string) => {
@@ -91,10 +113,19 @@ export function Home() {
   };
 
   const handleRemove = (category: string, index: number) => {
-    setSelectedDishes((prev) => ({
-      ...prev,
-      [category]: prev[category as keyof typeof prev].filter((_, i) => i !== index),
-    }));
+    const newSelection = {
+      ...selectedDishes,
+      [category]: selectedDishes[category as keyof typeof selectedDishes].filter((_, i) => i !== index),
+    };
+    setSelectedDishes(newSelection);
+    
+    const board: Record<string, string[]> = {};
+    categories.forEach((cat) => {
+      if (newSelection[cat].length > 0) {
+        board[cat] = newSelection[cat].map(d => d.name);
+      }
+    });
+    localStorage.setItem("todayBoard", JSON.stringify(board));
   };
 
   const handleDishClick = (category: string, index: number) => {
