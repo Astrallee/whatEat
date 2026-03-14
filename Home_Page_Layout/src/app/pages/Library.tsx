@@ -354,11 +354,13 @@ export function Library() {
                       {dishesByGroup[group].map((dish, index) => (
                         <div
                           key={index}
-                          className="px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 cursor-pointer"
-                          onClick={() => handleDishClick(dish)}
+                          className="px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0"
                         >
                           <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                            <div 
+                              className="flex-1 cursor-pointer"
+                              onClick={() => handleDishClick(dish)}
+                            >
                               <div className="text-gray-900 mb-1">
                                 {dish.name}
                               </div>
@@ -375,7 +377,7 @@ export function Library() {
                             </div>
                             <div className="flex items-center gap-2 ml-2">
                               <button
-                                onClick={() => handleAddToBoard(dish)}
+                                onClick={(e) => { e.stopPropagation(); handleAddToBoard(dish); }}
                                 className="text-orange-500 hover:text-orange-600 p-1"
                                 title="添加到桌板"
                               >
@@ -384,13 +386,13 @@ export function Library() {
                               {activeTab === "my" && (
                                 <>
                                   <button
-                                    onClick={() => handleEdit(dish)}
+                                    onClick={(e) => { e.stopPropagation(); handleEdit(dish); }}
                                     className="text-blue-500 hover:text-blue-600 p-1"
                                   >
                                     <Edit2 className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => handleDelete(dish)}
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(dish); }}
                                     className="text-red-500 hover:text-red-600 p-1"
                                   >
                                     <Trash2 className="w-4 h-4" />

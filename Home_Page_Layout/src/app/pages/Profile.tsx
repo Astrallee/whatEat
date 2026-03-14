@@ -123,7 +123,7 @@ export function Profile() {
 
   const menuItems = [
     { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
-    { icon: Heart, label: "我的收藏", count: favorites.length, action: () => setShowFavorites(true) },
+    { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
     { icon: Settings, label: "设置", action: () => setShowSettings(true) },
   ];
 
@@ -288,19 +288,26 @@ export function Profile() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 头部 */}
-      <div className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 pt-12 pb-8">
-        <div className="flex items-center gap-4">
-          <div 
-            className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-2xl overflow-hidden cursor-pointer"
-            onClick={handleAvatarClick}
-          >
-            {avatarImage ? (
-              <img src={avatarImage} alt="avatar" className="w-full h-full object-cover" />
-            ) : (
-              userInfo.avatar
-            )}
+      <div className="bg-gradient-to-b from-orange-600 via-orange-500 to-orange-400 px-6 pt-12 pb-8">
+        <div className="flex items-start gap-4">
+          <div className="relative">
+            <div 
+              className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-3xl overflow-hidden cursor-pointer shadow-lg border-2 border-white/30"
+              onClick={handleAvatarClick}
+            >
+              {avatarImage ? (
+                <img src={avatarImage} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                userInfo.avatar
+              )}
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 pt-1">
             {editingNickname ? (
               <div className="flex items-center gap-2">
                 <Input
@@ -314,14 +321,14 @@ export function Profile() {
               </div>
             ) : (
               <div 
-                className="text-white text-xl mb-1 cursor-pointer hover:opacity-80"
+                className="text-white text-2xl font-bold cursor-pointer hover:opacity-80"
                 onClick={() => { setTempNickname(userInfo.nickname); setEditingNickname(true); }}
               >
                 {userInfo.nickname}
               </div>
             )}
             {editingSignature ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mt-1">
                 <Input
                   value={tempSignature}
                   onChange={(e) => setTempSignature(e.target.value)}
@@ -334,52 +341,42 @@ export function Profile() {
               </div>
             ) : (
               <div 
-                className="text-orange-100 text-sm cursor-pointer hover:opacity-80"
+                className="text-orange-100 text-sm cursor-pointer hover:opacity-80 mt-1"
                 onClick={() => { setTempSignature(userInfo.signature); setEditingSignature(true); }}
               >
                 {userInfo.signature}
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* 统计卡片 */}
-      <div className="px-6 -mt-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex justify-around">
-            <div className="text-center">
-              <div className="text-2xl text-gray-900 mb-1">{decideCount}</div>
-              <div className="text-sm text-gray-500">已决定吃饭</div>
-            </div>
-            <div className="w-px bg-gray-200"></div>
-            <div className="text-center">
-              <div className="text-2xl text-gray-900 mb-1">{favorites.length}</div>
-              <div className="text-sm text-gray-500">我的收藏</div>
+            <div className="text-orange-200 text-xs mt-2">
+              已陪伴您{decideCount}顿饭
             </div>
           </div>
         </div>
       </div>
 
       {/* 菜单列表 */}
-      <div className="px-6 space-y-2">
+      <div className="px-6 space-y-3 pt-4">
         {menuItems.map((item, index) => {
           const Icon = item.icon;
           return (
             <button
               key={index}
               onClick={item.action}
-              className="w-full bg-white rounded-lg p-4 shadow-sm flex items-center justify-between hover:bg-gray-50 transition-colors"
+              className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:bg-gray-100 transition-all duration-150 hover:bg-gray-50"
             >
-              <div className="flex items-center gap-3">
-                <Icon className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-900">{item.label}</span>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-orange-500" />
+                </div>
+                <span className="text-gray-900 text-base">{item.label}</span>
               </div>
               <div className="flex items-center gap-2">
-                {item.count !== null && (
-                  <span className="text-sm text-gray-400">{item.count}</span>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className="text-sm bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                    {item.count}
+                  </span>
                 )}
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 text-gray-300" />
               </div>
             </button>
           );
