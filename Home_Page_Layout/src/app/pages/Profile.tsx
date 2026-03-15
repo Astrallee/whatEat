@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { ChevronRight, Heart, Clock, Settings, Trash2, MessageCircle, Info, X } from "lucide-react";
+import { ChevronRight, Heart, Clock, Settings, Trash2, MessageCircle, Info, X, Cloud } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
@@ -118,11 +118,19 @@ export function Profile() {
   const [tempNickname, setTempNickname] = useState("");
   const [tempSignature, setTempSignature] = useState("");
 
-  const menuItems = [
-    { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
-    { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
-    { icon: Settings, label: "设置", action: () => setShowSettings(true) },
-  ];
+  const menuItems = isLoggedIn
+    ? [
+        { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
+        { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
+        { icon: Cloud, label: "数据已同步", action: () => {} },
+        { icon: Settings, label: "设置", action: () => setShowSettings(true) },
+      ]
+    : [
+        { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
+        { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
+        { icon: Cloud, label: "数据同步", subtitle: "登录后可跨设备同步", action: () => setShowLoginDialog(true) },
+        { icon: Settings, label: "设置", action: () => setShowSettings(true) },
+      ];
 
   const handleReuseMenu = (dishes: { name: string; category?: string }[] | string[]) => {
     const board: Record<string, string[]> = {
@@ -352,22 +360,25 @@ export function Profile() {
             </div>
           </div>
         ) : (
-          // 匿名用户
-          <div className="flex flex-col items-center text-center pt-4">
-            <div 
-              className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-3xl overflow-hidden cursor-pointer mb-3"
-              onClick={() => setShowLoginDialog(true)}
-            >
-              {userInfo.avatar}
+          // 匿名用户 - 体验与登录用户一致
+          <div className="flex items-start gap-4">
+            <div className="relative">
+              <div 
+                className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-3xl overflow-hidden"
+              >
+                {userInfo.avatar}
+              </div>
             </div>
-            <button 
-              onClick={() => setShowLoginDialog(true)}
-              className="text-white text-lg font-medium hover:opacity-80"
-            >
-              点击登录
-            </button>
-            <div className="text-orange-200 text-xs mt-2">
-              登录后可同步菜单，换手机也不会丢失
+            <div className="flex-1 pt-1">
+              <div className="text-white text-2xl font-bold">
+                {userInfo.nickname}
+              </div>
+              <div className="text-orange-100 text-sm mt-1">
+                {userInfo.signature}
+              </div>
+              <div className="text-orange-200 text-xs mt-2">
+                已陪伴您决定了{history.length}顿饭
+              </div>
             </div>
           </div>
         )}
@@ -381,13 +392,18 @@ export function Profile() {
             <button
               key={index}
               onClick={item.action}
-              className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:bg-gray-100 transition-all duration-150 hover:bg-gray-50"
+              className={`w-full bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:bg-gray-100 transition-all duration-150 ${item.label === "数据同步" ? "" : "hover:bg-gray-50"}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-orange-500" />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.label === "数据已同步" ? "bg-green-50" : "bg-orange-50"}`}>
+                  <Icon className={`w-5 h-5 ${item.label === "数据已同步" ? "text-green-500" : "text-orange-500"}`} />
                 </div>
-                <span className="text-gray-900 text-base">{item.label}</span>
+                <div className="text-left">
+                  <span className="text-gray-900 text-base block">{item.label}</span>
+                  {item.subtitle && (
+                    <span className="text-xs text-gray-400">{item.subtitle}</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {item.count !== undefined && item.count > 0 && (
@@ -395,7 +411,11 @@ export function Profile() {
                     {item.count}
                   </span>
                 )}
-                <ChevronRight className="w-5 h-5 text-gray-300" />
+                {item.label === "数据同步" ? (
+                  <span className="text-sm text-orange-500 font-medium">登录</span>
+                ) : item.label !== "数据已同步" ? (
+                  <ChevronRight className="w-5 h-5 text-gray-300" />
+                ) : null}
               </div>
             </button>
           );
