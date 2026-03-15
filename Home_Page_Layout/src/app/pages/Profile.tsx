@@ -10,7 +10,6 @@ interface UserInfo {
   avatar: string;
   nickname: string;
   signature: string;
-  decideCount: number;
 }
 
 interface HistoryRecord {
@@ -35,18 +34,18 @@ const defaultUserInfo: UserInfo = {
   avatar: "👤",
   nickname: "美食达人",
   signature: "今天也要好好吃饭",
-  decideCount: 0,
 };
 
 export function Profile() {
   const navigate = useNavigate();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo>(defaultUserInfo);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [favorites, setFavorites] = useState<FavoriteDish[]>([]);
-  const [decideCount, setDecideCount] = useState(0);
   const [avatarImage, setAvatarImage] = useState<string>("");
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showAvatarCrop, setShowAvatarCrop] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
   
   useEffect(() => {
@@ -66,18 +65,14 @@ export function Profile() {
       })));
     }
 
-    const savedDecideCount = localStorage.getItem("decideCount");
-    if (savedDecideCount) {
-      setDecideCount(parseInt(savedDecideCount));
-    } else if (savedHistory) {
-      const historyData = JSON.parse(savedHistory);
-      setDecideCount(historyData.length);
-      localStorage.setItem("decideCount", String(historyData.length));
-    }
-
     const savedAvatar = localStorage.getItem("userAvatar");
     if (savedAvatar) {
       setAvatarImage(savedAvatar);
+    }
+
+    const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
+    if (savedIsLoggedIn === "true") {
+      setIsLoggedIn(true);
     }
   }, []);
 
@@ -98,9 +93,11 @@ export function Profile() {
             tags: [],
           })));
         }
-        const savedDecideCount = localStorage.getItem("decideCount");
-        if (savedDecideCount) {
-          setDecideCount(parseInt(savedDecideCount));
+        const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
+        if (savedIsLoggedIn === "true") {
+          setIsLoggedIn(true);
+        } else {
+          setIsLoggedIn(false);
         }
       }
     };
@@ -289,69 +286,91 @@ export function Profile() {
     <div className="min-h-screen bg-gray-50">
       {/* 头部 */}
       <div className="bg-gradient-to-b from-orange-600 via-orange-500 to-orange-400 px-6 pt-12 pb-8">
-        <div className="flex items-start gap-4">
-          <div className="relative">
-            <div 
-              className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-3xl overflow-hidden cursor-pointer shadow-lg border-2 border-white/30"
-              onClick={handleAvatarClick}
-            >
-              {avatarImage ? (
-                <img src={avatarImage} alt="avatar" className="w-full h-full object-cover" />
+        {isLoggedIn ? (
+          // 登录用户
+          <div className="flex items-start gap-4">
+            <div className="relative">
+              <div 
+                className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-3xl overflow-hidden cursor-pointer shadow-lg border-2 border-white/30"
+                onClick={handleAvatarClick}
+              >
+                {avatarImage ? (
+                  <img src={avatarImage} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                  userInfo.avatar
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+            </div>
+            <div className="flex-1 pt-1">
+              {editingNickname ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={tempNickname}
+                    onChange={(e) => setTempNickname(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveNickname()}
+                    className="h-8 bg-white"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={handleSaveNickname}>确定</Button>
+                </div>
               ) : (
-                userInfo.avatar
+                <div 
+                  className="text-white text-2xl font-bold cursor-pointer hover:opacity-80"
+                  onClick={() => { setTempNickname(userInfo.nickname); setEditingNickname(true); }}
+                >
+                  {userInfo.nickname}
+                </div>
               )}
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-md border-2 border-white">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
+              {editingSignature ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    value={tempSignature}
+                    onChange={(e) => setTempSignature(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveSignature()}
+                    className="h-7 bg-white text-sm"
+                    placeholder="个性签名"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={handleSaveSignature}>确定</Button>
+                </div>
+              ) : (
+                <div 
+                  className="text-orange-100 text-sm cursor-pointer hover:opacity-80 mt-1"
+                  onClick={() => { setTempSignature(userInfo.signature); setEditingSignature(true); }}
+                >
+                  {userInfo.signature}
+                </div>
+              )}
+              <div className="text-orange-200 text-xs mt-2">
+                已陪伴您决定了{history.length}顿饭
+              </div>
             </div>
           </div>
-          <div className="flex-1 pt-1">
-            {editingNickname ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={tempNickname}
-                  onChange={(e) => setTempNickname(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveNickname()}
-                  className="h-8 bg-white"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleSaveNickname}>确定</Button>
-              </div>
-            ) : (
-              <div 
-                className="text-white text-2xl font-bold cursor-pointer hover:opacity-80"
-                onClick={() => { setTempNickname(userInfo.nickname); setEditingNickname(true); }}
-              >
-                {userInfo.nickname}
-              </div>
-            )}
-            {editingSignature ? (
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  value={tempSignature}
-                  onChange={(e) => setTempSignature(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveSignature()}
-                  className="h-7 bg-white text-sm"
-                  placeholder="个性签名"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleSaveSignature}>确定</Button>
-              </div>
-            ) : (
-              <div 
-                className="text-orange-100 text-sm cursor-pointer hover:opacity-80 mt-1"
-                onClick={() => { setTempSignature(userInfo.signature); setEditingSignature(true); }}
-              >
-                {userInfo.signature}
-              </div>
-            )}
+        ) : (
+          // 匿名用户
+          <div className="flex flex-col items-center text-center pt-4">
+            <div 
+              className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-3xl overflow-hidden cursor-pointer mb-3"
+              onClick={() => setShowLoginDialog(true)}
+            >
+              {userInfo.avatar}
+            </div>
+            <button 
+              onClick={() => setShowLoginDialog(true)}
+              className="text-white text-lg font-medium hover:opacity-80"
+            >
+              点击登录
+            </button>
             <div className="text-orange-200 text-xs mt-2">
-              已陪伴您{decideCount}顿饭
+              登录后可同步菜单，换手机也不会丢失
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 菜单列表 */}
@@ -544,6 +563,33 @@ export function Profile() {
             <h2 className="text-lg font-semibold">设置</h2>
           </div>
           <div className="space-y-3">
+            {!isLoggedIn ? (
+              <button
+                onClick={() => { setShowSettings(false); setShowLoginDialog(true); }}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50"
+              >
+                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                <span className="text-gray-700">登录 / 注册</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (confirm("确定要登出吗？")) {
+                    localStorage.setItem("isLoggedIn", "false");
+                    setIsLoggedIn(false);
+                    setShowSettings(false);
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50"
+              >
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="text-red-600">退出登录</span>
+              </button>
+            )}
             <button
               onClick={handleClearCache}
               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50"
@@ -631,6 +677,42 @@ export function Profile() {
           <div className="text-center py-3 text-gray-500 text-sm">
             拖动图片调整位置
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 登录弹窗 */}
+      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center mb-6">
+            <div className="text-2xl mb-2">🍽️</div>
+            <h2 className="text-xl font-semibold">登录后同步数据</h2>
+            <p className="text-sm text-gray-500 mt-2">登录后可保存菜单到云端，换手机也不丢失</p>
+          </div>
+          <div className="space-y-3">
+            <Button 
+              className="w-full"
+              onClick={() => {
+                alert("手机验证码登录功能待接入 Supabase Auth");
+              }}
+            >
+              手机号登录
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => {
+                alert("微信登录功能待接入");
+              }}
+            >
+              微信登录
+            </Button>
+          </div>
+          <button
+            onClick={() => setShowLoginDialog(false)}
+            className="w-full text-center py-3 text-gray-500 text-sm hover:text-gray-700"
+          >
+            暂不登录
+          </button>
         </DialogContent>
       </Dialog>
     </div>
