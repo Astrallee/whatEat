@@ -8,11 +8,13 @@ import { useNavigate } from "react-router";
 import { Dialog, DialogContent } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { X } from "lucide-react";
+import { syncTodayBoard, saveBoardToCloud, removeBoardItemFromCloud } from "../../lib/sync";
 
 interface Dish {
   name: string;
   tags: string[];
   category: string;
+  source?: 'system' | 'user';
 }
 
 const dishLibrary: Dish[] = [
@@ -50,17 +52,44 @@ const categories = ["荤菜", "素菜", "汤", "主食", "甜品"] as const;
 
 function loadBoardFromStorage(): Dish[] {
   const savedBoard = localStorage.getItem("todayBoard");
+  const savedSources = localStorage.getItem("todayBoardSources");
   if (!savedBoard) return [];
   
   const board: Record<string, string[]> = JSON.parse(savedBoard);
+  const sources: Record<string, 'system' | 'user'> = savedSources ? JSON.parse(savedSources) : {};
   const dishes: Dish[] = [];
+  
+  // Load user dishes from localStorage
+  const savedUserDishes = localStorage.getItem("myDishes");
+  const userDishes: Dish[] = savedUserDishes ? JSON.parse(savedUserDishes) : [];
+  
+  // Build a map for quick lookup of user dishes by name
+  const userDishesMap = new Map<string, Dish>();
+  userDishes.forEach(d => userDishesMap.set(d.name, d));
   
   categories.forEach((cat) => {
     if (board[cat] && Array.isArray(board[cat])) {
       board[cat].forEach((dishName: string) => {
-        const dish = dishLibrary.find(d => d.name === dishName);
+        // First check system dishes
+        let dish = dishLibrary.find(d => d.name === dishName);
+        let source: 'system' | 'user' = sources[dishName] || 'system';
+        let finalCategory = cat;
+        
+        // If not found, check user dishes
+        if (!dish) {
+          const userDish = userDishesMap.get(dishName);
+          if (userDish) {
+            dish = userDish;
+            source = 'user';
+            // Use the actual category from user dish if it's valid
+            if (userDish.category && categories.includes(userDish.category as any)) {
+              finalCategory = userDish.category;
+            }
+          }
+        }
+        
         if (dish) {
-          dishes.push({ ...dish, category: cat });
+          dishes.push({ ...dish, category: finalCategory, source });
         }
       });
     }
@@ -81,14 +110,42 @@ export function Home() {
   const [randomCount, setRandomCount] = useState<number>(3);
   const [showCountDialog, setShowCountDialog] = useState(false);
 
+  // Load data on mount
   useEffect(() => {
-    setSelectedDishes(loadBoardFromStorage());
+    loadBoardData();
   }, []);
 
+  const loadBoardData = async () => {
+    // 检查是否登录
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+    const testUserId = localStorage.getItem('testUserId')
+    
+    if (isLoggedIn && testUserId) {
+      // 登录用户：从云端加载
+      const today = new Date().toISOString().split('T')[0]
+      const cloudData = await syncTodayBoard(testUserId, today)
+      
+      if (cloudData && cloudData.items.length > 0) {
+        // 转换为 Dish 格式
+        const dishes = cloudData.items.map((item: any) => ({
+          name: item.dish_name,
+          tags: item.dish_tags || [],
+          category: item.dish_category || '荤菜'
+        }))
+        setSelectedDishes(dishes)
+        saveToStorage(dishes)
+        return
+      }
+    }
+    
+    // 默认从本地加载
+    setSelectedDishes(loadBoardFromStorage());
+  };
+
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
-        setSelectedDishes(loadBoardFromStorage());
+        await loadBoardData();
       }
     };
 
@@ -212,7 +269,7 @@ export function Home() {
     navigate(`/add-dish?from=home`);
   };
 
-  const saveToStorage = (dishes: Dish[]) => {
+  const saveToStorage = async (dishes: Dish[]) => {
     const board: Record<string, string[]> = {
       荤菜: [],
       素菜: [],
@@ -220,22 +277,40 @@ export function Home() {
       主食: [],
       甜品: [],
     };
+    const sources: Record<string, 'system' | 'user'> = {};
     dishes.forEach((dish) => {
       if (board[dish.category]) {
         board[dish.category].push(dish.name);
       }
+      sources[dish.name] = dish.source || 'system';
     });
     localStorage.setItem("todayBoard", JSON.stringify(board));
+    localStorage.setItem("todayBoardSources", JSON.stringify(sources));
+    
+    // 同步到云端
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+    const testUserId = localStorage.getItem('testUserId')
+    
+    if (isLoggedIn && testUserId) {
+      const today = new Date().toISOString().split('T')[0]
+      // 按分类同步
+      for (const [category, dishNames] of Object.entries(board)) {
+        if (dishNames.length > 0) {
+          await saveBoardToCloud(testUserId, today, category, dishNames)
+        }
+      }
+    }
   };
 
   const handleAddToBoard = (dish: Dish) => {
-    const newDishes = [...selectedDishes, { ...dish, category: dish.category }];
+    const source = dish.source || 'system';
+    const newDishes = [...selectedDishes, { ...dish, category: dish.category, source }];
     setSelectedDishes(newDishes);
     saveToStorage(newDishes);
   };
 
   const handleAddMultipleToBoard = (dishes: Dish[]) => {
-    const newDishes = [...selectedDishes, ...dishes.map(d => ({ ...d, category: d.category }))];
+    const newDishes = [...selectedDishes, ...dishes.map(d => ({ ...d, category: d.category, source: d.source || 'system' }))];
     setSelectedDishes(newDishes);
     saveToStorage(newDishes);
   };
@@ -244,33 +319,23 @@ export function Home() {
     const menu = selectedDishes.map(d => d.name);
     localStorage.setItem("todayMenu", JSON.stringify(menu));
     
-    const historyRecord = {
-      id: Date.now().toString(),
-      date: dateStr,
-      timeType: "晚餐",
-      dishes: selectedDishes.map(d => ({ name: d.name, category: d.category, tags: d.tags })),
-    };
-    
-    const savedHistory = localStorage.getItem("historyBoard");
-    const history = savedHistory ? JSON.parse(savedHistory) : [];
-    history.unshift(historyRecord);
-    localStorage.setItem("historyBoard", JSON.stringify(history));
-    
-    const savedDecideCount = localStorage.getItem("decideCount");
-    const decideCount = savedDecideCount ? parseInt(savedDecideCount) : 0;
-    localStorage.setItem("decideCount", String(decideCount + 1));
-    
     navigate("/menu-generate");
   };
 
-  const getAvailableDishes = () => {
+  const getAvailableDishes = (): Dish[] => {
+    const savedUserDishes = localStorage.getItem("myDishes");
+    const userDishes: Dish[] = savedUserDishes ? JSON.parse(savedUserDishes) : [];
+    
+    const systemDishes = dishLibrary.map(d => ({ ...d, source: 'system' as const }));
+    const userDishesWithSource = userDishes.map(d => ({ ...d, source: 'user' as const }));
+    
     if (isRandomAll) {
-      return dishLibrary;
+      return [...systemDishes, ...userDishesWithSource];
     }
     if (currentCategory) {
-      return dishLibrary.filter(d => d.category === currentCategory);
+      return [...systemDishes, ...userDishesWithSource].filter(d => d.category === currentCategory);
     }
-    return dishLibrary;
+    return [...systemDishes, ...userDishesWithSource];
   };
 
   const currentDishName = selectedDishes[currentDishIndex]?.name || "";

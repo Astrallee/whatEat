@@ -78,7 +78,7 @@ export function DishDetail() {
     }
   }, [name]);
 
-  const handleFavorite = () => {
+  const handleFavorite = async () => {
     const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
     if (isFavorite) {
       const filtered = favorites.filter((f: string) => f !== name);
@@ -86,6 +86,14 @@ export function DishDetail() {
     } else {
       favorites.push(name);
       localStorage.setItem("favorites", JSON.stringify(favorites));
+      
+      // Sync to cloud if logged in
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+      const testUserId = localStorage.getItem('testUserId')
+      if (isLoggedIn && testUserId) {
+        const { addFavorite } = await import('../../lib/data')
+        await addFavorite(testUserId, name)
+      }
     }
     setIsFavorite(!isFavorite);
   };

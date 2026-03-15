@@ -14,6 +14,7 @@ import {
 } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
 import { cn } from "../components/ui/utils";
+import { createUserDish } from "../../lib/data";
 
 interface DishFormData {
   name: string;
@@ -40,10 +41,11 @@ function isSystemCuisine(cuisine: string): boolean {
 }
 
 const CATEGORIES = [
-  { value: "meat", label: "荤" },
-  { value: "vegetarian", label: "素" },
-  { value: "soup", label: "汤" },
-  { value: "staple", label: "主食" },
+  { value: "荤菜", label: "荤菜" },
+  { value: "素菜", label: "素菜" },
+  { value: "汤", label: "汤" },
+  { value: "主食", label: "主食" },
+  { value: "甜品", label: "甜品" },
 ];
 
 const TAGS = ["辣", "清淡", "快手", "下饭", "减脂", "家常", "创意", "甜品"];
@@ -63,8 +65,6 @@ export function AddDish() {
     tags: [],
     notes: "",
   });
-  const [showCuisineInput, setShowCuisineInput] = useState(false);
-  const [newCuisine, setNewCuisine] = useState("");
 
   useEffect(() => {
     if (isEdit && id) {
@@ -79,26 +79,6 @@ export function AddDish() {
     }
   }, [isEdit, id]);
 
-  const handleAddCuisine = () => {
-    const trimmed = newCuisine.trim();
-    if (!trimmed) return;
-    
-    if (isSystemCuisine(trimmed)) {
-      alert("不能使用系统菜系名称");
-      return;
-    }
-    
-    const existingCuisines = getMyCuisines("");
-    if (existingCuisines.includes(trimmed)) {
-      alert("该菜系已存在");
-      return;
-    }
-    
-    setFormData((prev) => ({ ...prev, cuisine: trimmed }));
-    setShowCuisineInput(false);
-    setNewCuisine("");
-  };
-
   const handleCategoryChange = (value: string) => {
     setFormData((prev) => ({ ...prev, category: value }));
   };
@@ -112,7 +92,7 @@ export function AddDish() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const savedDishes = localStorage.getItem("myDishes");
@@ -125,6 +105,84 @@ export function AddDish() {
     }
     
     localStorage.setItem("myDishes", JSON.stringify(dishes));
+    
+    // 如果是编辑模式且修改了菜名，同步更新桌板
+    if (isEdit && id && id !== formData.name) {
+      const savedBoard = localStorage.getItem("todayBoard");
+      const savedSources = localStorage.getItem("todayBoardSources");
+      if (savedBoard) {
+        const board = JSON.parse(savedBoard);
+        const sources = savedSources ? JSON.parse(savedSources) : {};
+        
+        // 遍历所有分类，找到旧菜名并替换
+        Object.keys(board).forEach(category => {
+          const index = board[category].indexOf(id);
+          if (index !== -1) {
+            board[category][index] = formData.name;
+          }
+        });
+        
+        // 更新来源信息
+        if (sources[id]) {
+          sources[formData.name] = sources[id];
+          delete sources[id];
+        }
+        
+        localStorage.setItem("todayBoard", JSON.stringify(board));
+        localStorage.setItem("todayBoardSources", JSON.stringify(sources));
+      }
+    }
+    
+    // 保存自定义菜系到 localStorage
+    if (formData.cuisine) {
+      const savedCuisines = localStorage.getItem("customCuisines");
+      let customCuisines: string[] = savedCuisines ? JSON.parse(savedCuisines) : [];
+      if (!customCuisines.includes(formData.cuisine)) {
+        customCuisines.push(formData.cuisine);
+        localStorage.setItem("customCuisines", JSON.stringify(customCuisines));
+      }
+    }
+    
+    // 同步到云端
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+    const testUserId = localStorage.getItem('testUserId')
+    
+    if (isLoggedIn && testUserId) {
+      if (!isEdit) {
+        // 新建菜品
+        console.log('Syncing dish to cloud:', formData);
+        const result = await createUserDish(testUserId, {
+          name: formData.name,
+          tags: formData.tags,
+          category: formData.category || '荤菜',
+          cuisine: formData.cuisine,
+          group_name: formData.cuisine,
+          snapshot_name: formData.name,
+          snapshot_tags: formData.tags,
+          notes: formData.notes || null,
+        })
+        console.log('Cloud sync result:', result);
+      } else {
+        // 编辑菜品时更新云端
+        const { getUserDishes, updateUserDish } = await import('../../lib/data')
+        const cloudDishes = await getUserDishes(testUserId)
+        const cloudDish = cloudDishes.find((d: any) => d.name === id)
+        if (cloudDish) {
+          await updateUserDish(cloudDish.id, {
+            name: formData.name,
+            tags: formData.tags,
+            category: formData.category || '荤菜',
+            cuisine: formData.cuisine,
+            group_name: formData.cuisine,
+            snapshot_name: formData.name,
+            snapshot_tags: formData.tags,
+            notes: formData.notes || null,
+          })
+        }
+      }
+    } else if (!isLoggedIn) {
+      console.log('Not logged in, dish saved locally only');
+    }
     
     if (fromHome) {
       const category = initialCuisine || formData.cuisine;
@@ -171,30 +229,6 @@ export function AddDish() {
                 ))}
               </SelectContent>
             </Select>
-            {showCuisineInput ? (
-              <div className="flex gap-2 mt-2">
-                <Input
-                  placeholder="输入新菜系名称"
-                  value={newCuisine}
-                  onChange={(e) => setNewCuisine(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddCuisine()}
-                />
-                <Button type="button" onClick={handleAddCuisine} size="sm">
-                  添加
-                </Button>
-                <Button type="button" variant="outline" onClick={() => { setShowCuisineInput(false); setNewCuisine(""); }} size="sm">
-                  取消
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowCuisineInput(true)}
-                className="text-sm text-primary hover:underline mt-2"
-              >
-                + 新增菜系
-              </button>
-            )}
           </div>
 
           <div className="space-y-2">

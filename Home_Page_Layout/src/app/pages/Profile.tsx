@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { ChevronRight, Heart, Clock, Settings, Trash2, MessageCircle, Info, X, Cloud } from "lucide-react";
+import { ChevronRight, Heart, Clock, Settings, Trash2, MessageCircle, Info, X, Cloud, LogOut } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { loginWithPhone, verifyOTP, getCurrentUser, onAuthStateChange, logout as supabaseLogout } from "../../lib/auth";
+import { getProfile, createProfile } from "../../lib/data";
+import { syncAllData, hasLocalData } from "../../lib/sync";
 
 interface UserInfo {
   avatar: string;
@@ -48,36 +51,229 @@ export function Profile() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
   
+  // Phone login state
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  
   useEffect(() => {
-    const savedHistory = localStorage.getItem("historyBoard");
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
+    // Check auth state on mount
+    checkAuth();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        checkAuth();
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, []);
+  
+  const checkAuth = async (triggerSync = false) => {
+    console.log('checkAuth called with triggerSync:', triggerSync);
+    
+    // 检查测试模式用户
+    const testUserId = localStorage.getItem('testUserId')
+    console.log('testUserId from localStorage:', testUserId);
+    
+    if (testUserId) {
+      setIsLoggedIn(true)
+      localStorage.setItem("isLoggedIn", "true")
+      
+      console.log('User logged in, triggerSync:', triggerSync, 'hasLocalData:', hasLocalData());
+      
+      if (triggerSync) {
+        // 总是尝试同步（无论有没有本地数据，都会拉取云端数据）
+        setIsSyncing(true)
+        try {
+          await syncAllData({
+            userId: testUserId,
+            onProgress: (msg) => {
+              console.log('Sync progress:', msg);
+              setSyncMessage(msg);
+            },
+            onComplete: () => {
+              console.log('Sync complete');
+              setIsSyncing(false)
+              setSyncMessage("")
+              // 刷新页面数据
+              window.location.reload()
+            }
+          })
+        } catch (error) {
+          console.error('Sync failed:', error);
+          setIsSyncing(false)
+          setSyncMessage("同步失败")
+        }
+      }
+      return
     }
     
-    const savedFavorites = localStorage.getItem("favorites");
-    if (savedFavorites) {
-      const favList = JSON.parse(savedFavorites);
-      setFavorites(favList.map((name: string, i: number) => ({
-        id: String(i),
-        name,
-        cuisine: "",
-        tags: [],
-      })));
-    }
-
-    const savedAvatar = localStorage.getItem("userAvatar");
-    if (savedAvatar) {
-      setAvatarImage(savedAvatar);
-    }
-
-    const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
-    if (savedIsLoggedIn === "true") {
+    // 检查 Supabase 用户
+    const user = await getCurrentUser();
+    if (user) {
+      // Check if profile exists, create if not
+      const profile = await getProfile(user.id);
+      if (!profile) {
+        await createProfile(user.id);
+      }
       setIsLoggedIn(true);
+      localStorage.setItem("isLoggedIn", "true");
+      
+      if (triggerSync && hasLocalData()) {
+        // 触发数据同步
+        setIsSyncing(true)
+        await syncAllData({
+          userId: user.id,
+          onProgress: (msg) => setSyncMessage(msg),
+          onComplete: () => {
+            setIsSyncing(false)
+            setSyncMessage("")
+            // 刷新页面数据
+            window.location.reload()
+          }
+        })
+      }
+    } else {
+      setIsLoggedIn(false);
+      localStorage.setItem("isLoggedIn", "false");
     }
+  };
+  
+  const handleSendOTP = async () => {
+    if (!phone || phone.length !== 11) {
+      setLoginError("请输入正确的手机号");
+      return;
+    }
+    
+    setIsLoading(true);
+    setLoginError("");
+    
+    const result = await loginWithPhone(phone);
+    
+    if (result.success) {
+      if ('autoConfirmed' in result && result.autoConfirmed) {
+        // 测试模式下自动确认，直接登录
+        setShowLoginDialog(false);
+        setOtpSent(false);
+        setOtp("");
+        setPhone("");
+        setLoginError("");
+        // 触发同步
+        await checkAuth(true);
+      } else {
+        setOtpSent(true);
+      }
+    } else {
+      setLoginError(result.error || "发送验证码失败");
+    }
+    
+    setIsLoading(false);
+  };
+  
+  const handleVerifyOTP = async () => {
+    if (!otp || otp.length !== 6) {
+      setLoginError("请输入6位验证码");
+      return;
+    }
+    
+    setIsLoading(true);
+    setLoginError("");
+    
+    const result = await verifyOTP(phone, otp);
+    
+    if (result.success) {
+      setShowLoginDialog(false);
+      setOtpSent(false);
+      setOtp("");
+      setPhone("");
+      setLoginError("");
+      // 触发同步
+      console.log('Login successful, triggering sync...');
+      await checkAuth(true);
+    } else {
+      setLoginError(result.error || "验证失败");
+    }
+    
+    setIsLoading(false);
+  };
+  
+  const handleLogout = async () => {
+    await supabaseLogout();
+    // 清除测试用户数据
+    localStorage.removeItem('testUserId');
+    localStorage.removeItem('testUserPhone');
+    setIsLoggedIn(false);
+    localStorage.setItem("isLoggedIn", "false");
+  };
+  
+  useEffect(() => {
+    const loadData = async () => {
+      // 加载本地数据
+      const savedHistory = localStorage.getItem("historyBoard");
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+      
+      const savedFavorites = localStorage.getItem("favorites");
+      if (savedFavorites) {
+        const favList = JSON.parse(savedFavorites);
+        setFavorites(favList.map((name: string, i: number) => ({
+          id: String(i),
+          name,
+          cuisine: "",
+          tags: [],
+        })));
+      }
+
+      const savedAvatar = localStorage.getItem("userAvatar");
+      if (savedAvatar) {
+        setAvatarImage(savedAvatar);
+      }
+
+      // 如果已登录，尝试从云端加载最新数据
+      const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
+      if (savedIsLoggedIn === "true") {
+        setIsLoggedIn(true);
+        
+        // 获取用户ID
+        const testUserId = localStorage.getItem('testUserId')
+        if (testUserId) {
+          // 从云端加载数据
+          const { getHistory, getFavorites } = await import('../../lib/data')
+          const [cloudHistory, cloudFavorites] = await Promise.all([
+            getHistory(testUserId),
+            getFavorites(testUserId)
+          ])
+          
+          if (cloudHistory.length > 0) {
+            setHistory(cloudHistory)
+            localStorage.setItem('historyBoard', JSON.stringify(cloudHistory))
+          }
+          
+          if (cloudFavorites.length > 0) {
+            setFavorites(cloudFavorites.map((f: any, i: number) => ({
+              id: f.id || String(i),
+              name: f.dish_name,
+              cuisine: "",
+              tags: f.snapshot_tags || [],
+            })))
+            localStorage.setItem('favorites', JSON.stringify(cloudFavorites.map((f: any) => f.dish_name)))
+          }
+        }
+      }
+    }
+    
+    loadData()
   }, []);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
         const savedHistory = localStorage.getItem("historyBoard");
         if (savedHistory) {
@@ -93,9 +289,35 @@ export function Profile() {
             tags: [],
           })));
         }
+        
         const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
         if (savedIsLoggedIn === "true") {
           setIsLoggedIn(true);
+          
+          // 从云端加载最新数据
+          const testUserId = localStorage.getItem('testUserId')
+          if (testUserId) {
+            const { getHistory, getFavorites } = await import('../../lib/data')
+            const [cloudHistory, cloudFavorites] = await Promise.all([
+              getHistory(testUserId),
+              getFavorites(testUserId)
+            ])
+            
+            if (cloudHistory.length > 0) {
+              setHistory(cloudHistory)
+              localStorage.setItem('historyBoard', JSON.stringify(cloudHistory))
+            }
+            
+            if (cloudFavorites.length > 0) {
+              setFavorites(cloudFavorites.map((f: any, i: number) => ({
+                id: f.id || String(i),
+                name: f.dish_name,
+                cuisine: "",
+                tags: f.snapshot_tags || [],
+              })))
+              localStorage.setItem('favorites', JSON.stringify(cloudFavorites.map((f: any) => f.dish_name)))
+            }
+          }
         } else {
           setIsLoggedIn(false);
         }
@@ -117,18 +339,22 @@ export function Profile() {
   const [editingSignature, setEditingSignature] = useState(false);
   const [tempNickname, setTempNickname] = useState("");
   const [tempSignature, setTempSignature] = useState("");
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
 
   const menuItems = isLoggedIn
     ? [
         { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
-        { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
-        { icon: Cloud, label: "数据已同步", action: () => {} },
+        { icon: Heart, label: "我的收藏", count: favorites.length, action: () => setShowFavorites(true) },
+        { icon: LogOut, label: "退出登录", action: () => {
+          if (confirm("确定要退出登录吗？")) {
+            handleLogout();
+          }
+        }},
         { icon: Settings, label: "设置", action: () => setShowSettings(true) },
       ]
     : [
         { icon: Clock, label: "历史桌板", count: history.length, action: () => setShowHistoryDetail(true) },
-        { icon: Heart, label: "我的收藏", action: () => setShowFavorites(true) },
-        { icon: Cloud, label: "数据同步", subtitle: "登录后可跨设备同步", action: () => setShowLoginDialog(true) },
+        { icon: Heart, label: "我的收藏", count: favorites.length, action: () => setShowFavorites(true) },
         { icon: Settings, label: "设置", action: () => setShowSettings(true) },
       ];
 
@@ -210,9 +436,29 @@ export function Profile() {
   };
 
   const handleClearCache = () => {
+    setShowClearCacheConfirm(true);
+  };
+
+  const confirmClearCache = () => {
+    // 只清除本地数据，不触碰云端相关状态
+    // 清除的内容：桌板、历史、收藏、私房菜、自定义菜系等
+    const keysToKeep = ['testUserId', 'testUserPhone', 'isLoggedIn'];
+    
+    // 获取需要保留的登录状态
+    const testUserId = localStorage.getItem('testUserId');
+    const testUserPhone = localStorage.getItem('testUserPhone');
+    const isLoggedIn = localStorage.getItem('isLoggedIn');
+    
+    // 清除所有本地存储
     localStorage.clear();
-    alert("缓存已清除");
-    setShowSettings(false);
+    
+    // 恢复登录状态（如果有）
+    if (testUserId) localStorage.setItem('testUserId', testUserId);
+    if (testUserPhone) localStorage.setItem('testUserPhone', testUserPhone);
+    if (isLoggedIn) localStorage.setItem('isLoggedIn', isLoggedIn);
+    
+    // 刷新页面以重新加载数据
+    window.location.reload();
   };
 
   const handleSaveNickname = () => {
@@ -354,13 +600,19 @@ export function Profile() {
                   {userInfo.signature}
                 </div>
               )}
-              <div className="text-orange-200 text-xs mt-2">
-                已陪伴您决定了{history.length}顿饭
+                  <div className="text-orange-200 text-xs mt-2">
+                    已陪伴您吃了{history.length}顿饭
+                  </div>
+                  {isLoggedIn && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-orange-200">
+                      <Cloud className="w-3 h-3" />
+                      <span>{isSyncing ? "同步中..." : "已同步至云端"}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        ) : (
-          // 匿名用户 - 体验与登录用户一致
+            ) : (
+              // 匿名用户 - 体验与登录用户一致
           <div className="flex items-start gap-4">
             <div className="relative">
               <div 
@@ -377,8 +629,14 @@ export function Profile() {
                 {userInfo.signature}
               </div>
               <div className="text-orange-200 text-xs mt-2">
-                已陪伴您决定了{history.length}顿饭
+                已陪伴您吃了{history.length}顿饭
               </div>
+              {!isLoggedIn && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-orange-200/70">
+                  <Cloud className="w-3 h-3" />
+                  <span>登录后同步数据</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -392,11 +650,11 @@ export function Profile() {
             <button
               key={index}
               onClick={item.action}
-              className={`w-full bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:bg-gray-100 transition-all duration-150 ${item.label === "数据同步" ? "" : "hover:bg-gray-50"}`}
+              className={`w-full bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:bg-gray-100 transition-all duration-150 ${item.label === "数据同步" || item.label === "同步中..." ? "" : "hover:bg-gray-50"}`}
             >
               <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.label === "数据已同步" ? "bg-green-50" : "bg-orange-50"}`}>
-                  <Icon className={`w-5 h-5 ${item.label === "数据已同步" ? "text-green-500" : "text-orange-500"}`} />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.label === "数据已同步" ? "bg-green-50" : item.label === "同步中..." ? "bg-blue-50" : "bg-orange-50"}`}>
+                  <Icon className={`w-5 h-5 ${item.label === "数据已同步" ? "text-green-500" : item.label === "同步中..." ? "text-blue-500" : "text-orange-500"}`} />
                 </div>
                 <div className="text-left">
                   <span className="text-gray-900 text-base block">{item.label}</span>
@@ -413,6 +671,8 @@ export function Profile() {
                 )}
                 {item.label === "数据同步" ? (
                   <span className="text-sm text-orange-500 font-medium">登录</span>
+                ) : item.label === "同步中..." ? (
+                  <span className="text-sm text-blue-500 font-medium">同步</span>
                 ) : item.label !== "数据已同步" ? (
                   <ChevronRight className="w-5 h-5 text-gray-300" />
                 ) : null}
@@ -597,8 +857,7 @@ export function Profile() {
               <button
                 onClick={() => {
                   if (confirm("确定要登出吗？")) {
-                    localStorage.setItem("isLoggedIn", "false");
-                    setIsLoggedIn(false);
+                    handleLogout();
                     setShowSettings(false);
                   }
                 }}
@@ -631,6 +890,40 @@ export function Profile() {
               <Info className="w-5 h-5 text-gray-600" />
               <span className="text-gray-700">关于我们</span>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 清除缓存确认弹窗 */}
+      <Dialog open={showClearCacheConfirm} onOpenChange={setShowClearCacheConfirm}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h2 className="text-lg font-semibold mb-2">确认清除缓存？</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              此操作将清除所有本地数据，包括：<br />
+              • 我的私房菜<br />
+              • 今日桌板<br />
+              • 历史记录和收藏<br />
+              <span className="text-red-500 font-medium">数据将无法恢复！</span>
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => setShowClearCacheConfirm(false)}
+            >
+              取消
+            </Button>
+            <Button 
+              className="flex-1 bg-red-500 hover:bg-red-600"
+              onClick={confirmClearCache}
+            >
+              确认清除
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -703,36 +996,86 @@ export function Profile() {
       {/* 登录弹窗 */}
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
         <DialogContent className="max-w-sm">
-          <div className="text-center mb-6">
-            <div className="text-2xl mb-2">🍽️</div>
-            <h2 className="text-xl font-semibold">登录后同步数据</h2>
-            <p className="text-sm text-gray-500 mt-2">登录后可保存菜单到云端，换手机也不丢失</p>
-          </div>
-          <div className="space-y-3">
-            <Button 
-              className="w-full"
+          {!otpSent ? (
+            <>
+              <div className="text-center mb-6">
+                <div className="text-2xl mb-2">🍽️</div>
+                <h2 className="text-xl font-semibold">登录后同步数据</h2>
+                <p className="text-sm text-gray-500 mt-2">登录后可保存菜单到云端，换手机也不丢失</p>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  placeholder="请输入手机号"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={11}
+                />
+                {loginError && (
+                  <p className="text-red-500 text-sm">{loginError}</p>
+                )}
+                <Button 
+                  className="w-full"
+                  onClick={handleSendOTP}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "发送中..." : "发送验证码"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-center mb-6">
+                <div className="text-2xl mb-2">📱</div>
+                <h2 className="text-xl font-semibold">输入验证码</h2>
+                <p className="text-sm text-gray-500 mt-2">已发送验证码到 {phone}</p>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  placeholder="请输入6位验证码"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  maxLength={6}
+                />
+                {loginError && (
+                  <p className="text-red-500 text-sm">{loginError}</p>
+                )}
+                <Button 
+                  className="w-full"
+                  onClick={handleVerifyOTP}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "验证中..." : "确认"}
+                </Button>
+                
+                <Button 
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setOtpSent(false);
+                    setOtp("");
+                    setLoginError("");
+                  }}
+                >
+                  重新输入手机号
+                </Button>
+              </div>
+            </>
+          )}
+          
+          <div className="border-t border-gray-100 pt-4 mt-4">
+            <button
               onClick={() => {
-                alert("手机验证码登录功能待接入 Supabase Auth");
+                setShowLoginDialog(false);
+                setOtpSent(false);
+                setOtp("");
+                setPhone("");
+                setLoginError("");
               }}
+              className="w-full py-3 text-gray-500 hover:bg-gray-100 rounded-lg"
             >
-              手机号登录
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => {
-                alert("微信登录功能待接入");
-              }}
-            >
-              微信登录
-            </Button>
+              暂不登录
+            </button>
           </div>
-          <button
-            onClick={() => setShowLoginDialog(false)}
-            className="w-full text-center py-3 text-gray-500 text-sm hover:text-gray-700"
-          >
-            暂不登录
-          </button>
         </DialogContent>
       </Dialog>
     </div>

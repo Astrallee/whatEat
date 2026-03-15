@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
-import { Heart, Download, Share2 } from "lucide-react";
+import { Dialog, DialogContent } from "../components/ui/dialog";
+import { Heart, Share2, ArrowLeft, Check, MessageCircle, MoreHorizontal } from "lucide-react";
 
 interface Dish {
   name: string;
@@ -14,12 +15,28 @@ export function MenuGenerate() {
   const [selectedDishes, setSelectedDishes] = useState<Dish[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteDishes, setFavoriteDishes] = useState<string[]>([]);
+  const [showShareSheet, setShowShareSheet] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("todayMenu");
-    if (saved) {
-      const menu = JSON.parse(saved);
-      const dishes: Dish[] = menu.map((name: string) => ({ name, tags: [], category: "" }));
+    // Load menu from localStorage
+    const savedMenu = localStorage.getItem("todayMenu");
+    if (savedMenu) {
+      const menu = JSON.parse(savedMenu);
+      
+      // Also load today's board to get full dish info
+      const savedBoard = localStorage.getItem("todayBoard");
+      const board = savedBoard ? JSON.parse(savedBoard) : {};
+      
+      // Reconstruct dishes with category info
+      const dishes: Dish[] = [];
+      for (const category in board) {
+        if (Array.isArray(board[category])) {
+          for (const dishName of board[category]) {
+            dishes.push({ name: dishName, tags: [], category });
+          }
+        }
+      }
+      
       setSelectedDishes(dishes);
       
       const favs = JSON.parse(localStorage.getItem("favorites") || "[]");
@@ -33,7 +50,7 @@ export function MenuGenerate() {
   const today = new Date();
   const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
 
-  const handleFavoriteSingle = (dishName: string) => {
+  const handleFavoriteSingle = async (dishName: string) => {
     const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
     let newFavorites: string[];
     
@@ -43,6 +60,14 @@ export function MenuGenerate() {
     } else {
       newFavorites = [...favorites, dishName];
       setFavoriteDishes([...favoriteDishes, dishName]);
+      
+      // Sync to cloud if logged in
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+      const testUserId = localStorage.getItem('testUserId')
+      if (isLoggedIn && testUserId) {
+        const { addFavorite } = await import('../../lib/data')
+        await addFavorite(testUserId, dishName)
+      }
     }
     
     localStorage.setItem("favorites", JSON.stringify(newFavorites));
@@ -68,13 +93,107 @@ export function MenuGenerate() {
     setIsFavorite(!isFavorite);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const menuText = selectedDishes.map(d => d.name).join("、");
-    alert(`分享菜单：${menuText}`);
+    const shareText = `今日菜单：${menuText}\n\n由「今天吃什么」生成`;
+    
+    setShowShareSheet(true);
   };
 
-  const handleSaveImage = () => {
-    alert("保存图片功能需要使用 html2canvas 库实现");
+  const handleShareToWeChat = async () => {
+    const menuText = selectedDishes.map(d => d.name).join("、");
+    const shareText = `今日菜单：${menuText}\n\n由「今天吃什么」生成`;
+    
+    try {
+      await navigator.clipboard.writeText(shareText);
+      alert('菜单已复制，请打开微信分享');
+    } catch (err) {
+      alert(`分享菜单：${menuText}`);
+    }
+    setShowShareSheet(false);
+  };
+
+  const handleShareToQQ = async () => {
+    const menuText = selectedDishes.map(d => d.name).join("、");
+    const shareText = `今日菜单：${menuText}\n\n由「今天吃什么」生成`;
+    
+    try {
+      await navigator.clipboard.writeText(shareText);
+      alert('菜单已复制，请打开QQ分享');
+    } catch (err) {
+      alert(`分享菜单：${menuText}`);
+    }
+    setShowShareSheet(false);
+  };
+
+  const handleShareToMore = async () => {
+    const menuText = selectedDishes.map(d => d.name).join("、");
+    const shareText = `今日菜单：${menuText}\n\n由「今天吃什么」生成`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: '今日菜单',
+          text: shareText,
+        });
+      } catch (err) {
+        console.log('Share cancelled');
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert('菜单已复制到剪贴板');
+      } catch (err) {
+        alert(`分享菜单：${menuText}`);
+      }
+    }
+    setShowShareSheet(false);
+  };
+
+  // 返回修改 - 保持当前桌板状态
+  const handleGoBack = () => {
+    navigate("/");
+  };
+
+  // 保存并返回 - 清空桌板并保存历史
+  const handleSaveAndReturn = async () => {
+    // 1. 保存到历史记录
+    const historyRecord = {
+      id: Date.now().toString(),
+      date: dateStr,
+      timeType: "晚餐",
+      dishes: selectedDishes.map(d => ({ name: d.name, category: d.category, tags: d.tags })),
+    };
+    
+    const savedHistory = localStorage.getItem("historyBoard");
+    const history = savedHistory ? JSON.parse(savedHistory) : [];
+    history.unshift(historyRecord);
+    localStorage.setItem("historyBoard", JSON.stringify(history));
+    
+    // Sync history to cloud if logged in
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+    const testUserId = localStorage.getItem('testUserId')
+    if (isLoggedIn && testUserId) {
+      const { createHistory } = await import('../../lib/data')
+      await createHistory(testUserId, {
+        date: dateStr,
+        time_type: "晚餐",
+        dishes: selectedDishes.map(d => ({ name: d.name, category: d.category, tags: d.tags })),
+      })
+    }
+    
+    // 2. 清空今日桌板
+    const emptyBoard = {
+      荤菜: [],
+      素菜: [],
+      汤: [],
+      主食: [],
+      甜品: [],
+    };
+    localStorage.setItem("todayBoard", JSON.stringify(emptyBoard));
+    
+    // 3. 返回首页
+    navigate("/");
   };
 
   return (
@@ -122,22 +241,83 @@ export function MenuGenerate() {
           </Button>
           <Button variant="outline" className="flex-1" onClick={handleShare}>
             <Share2 className="w-4 h-4 mr-2" />
-            微信分享
+            分享
           </Button>
         </div>
 
-        <Button variant="outline" className="w-full" onClick={handleSaveImage}>
-          <Download className="w-4 h-4 mr-2" />
-          保存图片
-        </Button>
-
-        <button
-          onClick={() => navigate("/")}
-          className="w-full mt-4 py-3 text-orange-500 hover:text-orange-600"
-        >
-          返回首页
-        </button>
+        <div className="flex gap-3 mt-4">
+          <Button 
+            variant="outline" 
+            className="flex-1"
+            onClick={handleGoBack}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            返回修改
+          </Button>
+          <Button 
+            className="flex-1"
+            onClick={handleSaveAndReturn}
+          >
+            <Check className="w-4 h-4 mr-2" />
+            保存并返回
+          </Button>
+        </div>
       </div>
+
+      {/* 分享面板 */}
+      <Dialog open={showShareSheet} onOpenChange={setShowShareSheet}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden">
+          <div className="text-center py-4 border-b border-gray-100">
+            <h3 className="text-lg font-semibold">分享菜单</h3>
+          </div>
+          
+          <div className="py-6 px-4">
+            <div className="flex justify-center gap-8">
+              {/* 微信 */}
+              <button
+                onClick={handleShareToWeChat}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center">
+                  <MessageCircle className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-sm text-gray-600">微信</span>
+              </button>
+              
+              {/* QQ */}
+              <button
+                onClick={handleShareToQQ}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">Q</span>
+                </div>
+                <span className="text-sm text-gray-600">QQ</span>
+              </button>
+              
+              {/* 更多 */}
+              <button
+                onClick={handleShareToMore}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center">
+                  <MoreHorizontal className="w-7 h-7 text-gray-500" />
+                </div>
+                <span className="text-sm text-gray-400">更多</span>
+              </button>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-100">
+            <button
+              onClick={() => setShowShareSheet(false)}
+              className="w-full py-4 text-gray-500 hover:bg-gray-50"
+            >
+              取消
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
