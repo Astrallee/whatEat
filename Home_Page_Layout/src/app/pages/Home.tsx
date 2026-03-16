@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { CategorySlot } from "../components/CategorySlot";
 import { AddDishSheet } from "../components/AddDishSheet";
 import { LotteryAnimation } from "../components/LotteryAnimation";
-import { DishContextMenu } from "../components/DishContextMenu";
 import { Sparkles, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Dialog, DialogContent } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { X } from "lucide-react";
-import { syncTodayBoard, saveBoardToCloud, removeBoardItemFromCloud } from "../../lib/sync";
 
 interface Dish {
   name: string;
@@ -103,12 +101,15 @@ export function Home() {
   const [selectedDishes, setSelectedDishes] = useState<Dish[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [lotteryOpen, setLotteryOpen] = useState(false);
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<string>("");
-  const [currentDishIndex, setCurrentDishIndex] = useState<number>(0);
   const [isRandomAll, setIsRandomAll] = useState(false);
   const [randomCount, setRandomCount] = useState<number>(3);
   const [showCountDialog, setShowCountDialog] = useState(false);
+  const [lotteryAvoidTags, setLotteryAvoidTags] = useState<string[]>([]);
+  
+  // 当前日期
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
 
   // Load data on mount
   useEffect(() => {
@@ -116,157 +117,8 @@ export function Home() {
   }, []);
 
   const loadBoardData = async () => {
-    // 检查是否登录
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
-    const testUserId = localStorage.getItem('testUserId')
-    
-    if (isLoggedIn && testUserId) {
-      // 登录用户：从云端加载
-      const today = new Date().toISOString().split('T')[0]
-      const cloudData = await syncTodayBoard(testUserId, today)
-      
-      if (cloudData && cloudData.items.length > 0) {
-        // 转换为 Dish 格式
-        const dishes = cloudData.items.map((item: any) => ({
-          name: item.dish_name,
-          tags: item.dish_tags || [],
-          category: item.dish_category || '荤菜'
-        }))
-        setSelectedDishes(dishes)
-        saveToStorage(dishes)
-        return
-      }
-    }
-    
-    // 默认从本地加载
+    // 加载本地桌板数据
     setSelectedDishes(loadBoardFromStorage());
-  };
-
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
-        await loadBoardData();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
-
-  const categoryCount = {
-    荤菜: selectedDishes.filter(d => d.category === "荤菜").length,
-    素菜: selectedDishes.filter(d => d.category === "素菜").length,
-    汤: selectedDishes.filter(d => d.category === "汤").length,
-    主食: selectedDishes.filter(d => d.category === "主食").length,
-    甜品: selectedDishes.filter(d => d.category === "甜品").length,
-  };
-
-  const totalDishes = selectedDishes.length;
-  const isBoardFull = totalDishes > 0;
-
-  const getSuggestion = () => {
-    if (totalDishes === 0) return "开始添加你的今日菜单吧";
-    if (categoryCount.荤菜 === 0 && categoryCount.素菜 === 0) return "建议加一道荤菜或素菜";
-    if (categoryCount.汤 === 0) return "建议加一道汤";
-    if (categoryCount.主食 === 0) return "建议加一道主食";
-    if (categoryCount.甜品 === 0 && totalDishes >= 4) return "可以加道甜品收尾";
-    return "搭配很均衡！";
-  };
-
-  const getCurrentSummary = () => {
-    const parts = [];
-    if (categoryCount.荤菜 > 0) parts.push(`${categoryCount.荤菜}荤`);
-    if (categoryCount.素菜 > 0) parts.push(`${categoryCount.素菜}素`);
-    if (categoryCount.汤 > 0) parts.push(`${categoryCount.汤}汤`);
-    if (categoryCount.主食 > 0) parts.push(`${categoryCount.主食}主食`);
-    if (categoryCount.甜品 > 0) parts.push(`${categoryCount.甜品}甜品`);
-    return parts.join(" ") || "还未添加";
-  };
-
-  const today = new Date();
-  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
-
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const handleTouchStart = (index: number) => {
-    longPressTimer.current = setTimeout(() => {
-      handleDishLongPress(index);
-    }, 500);
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
-  const handleAdd = () => {
-    setCurrentCategory("");
-    setSheetOpen(true);
-  };
-
-  const handleRemove = (index: number) => {
-    const newDishes = selectedDishes.filter((_, i) => i !== index);
-    setSelectedDishes(newDishes);
-    saveToStorage(newDishes);
-  };
-
-  const handleDishClick = (index: number) => {
-    const dish = selectedDishes[index];
-    if (dish) {
-      navigate(`/dish/${dish.name}`);
-    }
-  };
-
-  const handleDishLongPress = (index: number) => {
-    setCurrentDishIndex(index);
-    setContextMenuOpen(true);
-  };
-
-  const handleViewDetail = () => {
-    if (selectedDishes[currentDishIndex]) {
-      navigate(`/dish/${selectedDishes[currentDishIndex].name}`);
-    }
-  };
-
-  const handleReplace = () => {
-    setIsRandomAll(false);
-    setLotteryOpen(true);
-  };
-
-  const handleContextDelete = () => {
-    handleRemove(currentDishIndex);
-  };
-
-  const [lotteryAvoidTags, setLotteryAvoidTags] = useState<string[]>([]);
-
-  const handleRandomPick = (category: string, avoidTags: string[]) => {
-    setCurrentCategory(category);
-    setLotteryAvoidTags(avoidTags);
-    setIsRandomAll(false);
-    setSheetOpen(false);
-    setLotteryOpen(true);
-  };
-
-  const handleRandomAll = () => {
-    setShowCountDialog(true);
-  };
-
-  const handleStartRandomAll = (count: number) => {
-    setRandomCount(count);
-    setCurrentCategory("全部");
-    setIsRandomAll(true);
-    setShowCountDialog(false);
-    setLotteryOpen(true);
-  };
-
-  const handleSelectFromLibrary = () => {
-    navigate("/library");
-  };
-
-  const handleCreateNew = () => {
-    navigate(`/add-dish?from=home`);
   };
 
   const saveToStorage = async (dishes: Dish[]) => {
@@ -286,20 +138,6 @@ export function Home() {
     });
     localStorage.setItem("todayBoard", JSON.stringify(board));
     localStorage.setItem("todayBoardSources", JSON.stringify(sources));
-    
-    // 同步到云端
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
-    const testUserId = localStorage.getItem('testUserId')
-    
-    if (isLoggedIn && testUserId) {
-      const today = new Date().toISOString().split('T')[0]
-      // 按分类同步
-      for (const [category, dishNames] of Object.entries(board)) {
-        if (dishNames.length > 0) {
-          await saveBoardToCloud(testUserId, today, category, dishNames)
-        }
-      }
-    }
   };
 
   const handleAddToBoard = (dish: Dish) => {
@@ -338,7 +176,77 @@ export function Home() {
     return [...systemDishes, ...userDishesWithSource];
   };
 
-  const currentDishName = selectedDishes[currentDishIndex]?.name || "";
+  const getCurrentSummary = (): string => {
+    if (selectedDishes.length === 0) return "还未选择菜品";
+    const categoryCount: Record<string, number> = {};
+    selectedDishes.forEach(dish => {
+      categoryCount[dish.category] = (categoryCount[dish.category] || 0) + 1;
+    });
+    const parts = Object.entries(categoryCount).map(([cat, count]) => `${cat}x${count}`);
+    return `${selectedDishes.length}道菜 - ${parts.join(" ")}`;
+  };
+
+  const getSuggestion = (): string => {
+    if (selectedDishes.length === 0) return "点击下方添加菜品开始搭配";
+    const categories = selectedDishes.map(d => d.category);
+    const hasMeat = categories.includes("荤菜");
+    const hasVegetable = categories.includes("素菜");
+    const hasSoup = categories.includes("汤");
+    const hasStaple = categories.includes("主食");
+    
+    if (!hasMeat) return "建议加一道荤菜";
+    if (!hasVegetable) return "建议加一道素菜";
+    if (!hasSoup && selectedDishes.length < 4) return "可以加一道汤";
+    if (!hasStaple) return "建议加一份主食";
+    if (hasMeat && hasVegetable && hasSoup && hasStaple) return "营养均衡的搭配！";
+    return "搭配不错";
+  };
+
+  const isBoardFull = selectedDishes.length >= 1;
+
+  const handleAdd = () => setSheetOpen(true);
+
+  const handleRemove = (index: number) => {
+    const newDishes = selectedDishes.filter((_, i) => i !== index);
+    setSelectedDishes(newDishes);
+    saveToStorage(newDishes);
+  };
+
+  const handleDishClick = (dishName: string) => {
+    navigate(`/dish/${dishName}`);
+  };
+
+  const handleTouchStart = (index: number) => {};
+  const handleTouchEnd = () => {};
+
+  const handleRandomPick = (category: string, avoidTags: string[]) => {
+    setCurrentCategory(category);
+    setLotteryAvoidTags(avoidTags);
+    setIsRandomAll(false);
+    setSheetOpen(false);
+    setLotteryOpen(true);
+  };
+
+  const handleSelectFromLibrary = () => {
+    navigate("/library");
+  };
+
+  const handleCreateNew = () => {
+    navigate("/library?create=true");
+  };
+
+  const handleStartRandomAll = (count: number) => {
+    setRandomCount(count);
+    setShowCountDialog(false);
+    setIsRandomAll(true);
+    setCurrentCategory("");
+    setLotteryAvoidTags([]);
+    setLotteryOpen(true);
+  };
+
+  const handleRandomAll = () => {
+    setShowCountDialog(true);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white pb-20">
@@ -359,7 +267,7 @@ export function Home() {
             {selectedDishes.map((dish, index) => (
               <div
                 key={index}
-                onClick={() => handleDishClick(index)}
+                onClick={() => handleDishClick(dish.name)}
                 onTouchStart={() => handleTouchStart(index)}
                 onTouchEnd={handleTouchEnd}
                 className="bg-white rounded-lg p-4 shadow-sm cursor-pointer active:scale-95 transition-transform"
@@ -402,7 +310,7 @@ export function Home() {
           <span>添加菜</span>
         </button>
 
-        {isBoardFull ? (
+        {selectedDishes.length > 0 ? (
           <button
             onClick={handleGenerateMenu}
             className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg"
@@ -439,15 +347,6 @@ export function Home() {
         isRandomAll={isRandomAll}
         randomCount={randomCount}
         avoidTags={lotteryAvoidTags}
-      />
-
-      <DishContextMenu
-        open={contextMenuOpen}
-        onClose={() => setContextMenuOpen(false)}
-        onViewDetail={handleViewDetail}
-        onReplace={handleReplace}
-        onDelete={handleContextDelete}
-        dishName={currentDishName}
       />
 
       <Dialog open={showCountDialog} onOpenChange={setShowCountDialog}>

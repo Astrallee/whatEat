@@ -40,7 +40,7 @@ export function LotteryAnimation({
   const [selectedDishes, setSelectedDishes] = useState<Dish[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const isMultiMode = isRandomAll && category === "全部";
+  const isMultiMode = isRandomAll;
 
   const filterDishesByAvoid = (dishes: Dish[]): Dish[] => {
     if (avoidTags.length === 0) return dishes;

@@ -60,6 +60,14 @@ export function Profile() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   
+  // 加载本地用户信息
+  useEffect(() => {
+    const savedUserInfo = localStorage.getItem('userInfo');
+    if (savedUserInfo) {
+      setUserInfo(JSON.parse(savedUserInfo));
+    }
+  }, []);
+  
   useEffect(() => {
     // Check auth state on mount
     checkAuth();
@@ -154,11 +162,16 @@ export function Profile() {
     setIsLoading(true);
     setLoginError("");
     
+    console.log('handleSendOTP called with phone:', phone);
     const result = await loginWithPhone(phone);
+    console.log('handleSendOTP result:', result);
     
     if (result.success) {
       if ('autoConfirmed' in result && result.autoConfirmed) {
-        // 测试模式下自动确认，直接登录
+        // 已自动登录
+        const testUserId = localStorage.getItem('testUserId');
+        console.log('Auto confirmed, testUserId:', testUserId);
+        
         setShowLoginDialog(false);
         setOtpSent(false);
         setOtp("");
@@ -185,9 +198,16 @@ export function Profile() {
     setIsLoading(true);
     setLoginError("");
     
+    console.log('handleVerifyOTP called with phone:', phone, 'otp:', otp);
+    
     const result = await verifyOTP(phone, otp);
+    console.log('handleVerifyOTP result:', result);
     
     if (result.success) {
+      // Verify testUserId is set
+      const testUserId = localStorage.getItem('testUserId');
+      console.log('testUserId after verifyOTP:', testUserId);
+      
       setShowLoginDialog(false);
       setOtpSent(false);
       setOtp("");
@@ -214,13 +234,17 @@ export function Profile() {
   
   useEffect(() => {
     const loadData = async () => {
+      console.log('=== Profile loadData START ===');
+      
       // 加载本地数据
       const savedHistory = localStorage.getItem("historyBoard");
+      console.log('Local history:', savedHistory ? 'exists' : 'empty');
       if (savedHistory) {
         setHistory(JSON.parse(savedHistory));
       }
       
       const savedFavorites = localStorage.getItem("favorites");
+      console.log('Local favorites:', savedFavorites ? 'exists' : 'empty');
       if (savedFavorites) {
         const favList = JSON.parse(savedFavorites);
         setFavorites(favList.map((name: string, i: number) => ({
@@ -236,37 +260,67 @@ export function Profile() {
         setAvatarImage(savedAvatar);
       }
 
-      // 如果已登录，尝试从云端加载最新数据
+      // 如果已登录，同步数据
       const savedIsLoggedIn = localStorage.getItem("isLoggedIn");
+      console.log('isLoggedIn:', savedIsLoggedIn);
+      
       if (savedIsLoggedIn === "true") {
         setIsLoggedIn(true);
         
-        // 获取用户ID
         const testUserId = localStorage.getItem('testUserId')
+        console.log('testUserId:', testUserId);
+        
         if (testUserId) {
-          // 从云端加载数据
-          const { getHistory, getFavorites } = await import('../../lib/data')
-          const [cloudHistory, cloudFavorites] = await Promise.all([
-            getHistory(testUserId),
-            getFavorites(testUserId)
-          ])
-          
-          if (cloudHistory.length > 0) {
-            setHistory(cloudHistory)
-            localStorage.setItem('historyBoard', JSON.stringify(cloudHistory))
-          }
-          
-          if (cloudFavorites.length > 0) {
-            setFavorites(cloudFavorites.map((f: any, i: number) => ({
-              id: f.id || String(i),
-              name: f.dish_name,
-              cuisine: "",
-              tags: f.snapshot_tags || [],
-            })))
-            localStorage.setItem('favorites', JSON.stringify(cloudFavorites.map((f: any) => f.dish_name)))
-          }
+          console.log('Calling syncAllData...');
+          // 触发同步 - syncAllData 会处理拉取/上传/冲突解决
+          setIsSyncing(true)
+          await syncAllData({
+            userId: testUserId,
+            onProgress: (msg) => {
+              console.log('Sync progress:', msg);
+              setSyncMessage(msg);
+            },
+            onComplete: async () => {
+              console.log('Sync complete!');
+              setIsSyncing(false)
+              setSyncMessage("")
+              // 同步完成后重新加载本地数据
+              const updatedHistory = localStorage.getItem("historyBoard");
+              console.log('Updated history:', updatedHistory);
+              if (updatedHistory) {
+                setHistory(JSON.parse(updatedHistory));
+              }
+              const updatedFavorites = localStorage.getItem("favorites");
+              console.log('Updated favorites:', updatedFavorites);
+              if (updatedFavorites) {
+                const favList = JSON.parse(updatedFavorites);
+                setFavorites(favList.map((name: string, i: number) => ({
+                  id: String(i),
+                  name,
+                  cuisine: "",
+                  tags: [],
+                })));
+              }
+              
+              // 加载云端用户信息
+              const { getProfile } = await import('../../lib/data');
+              const cloudProfile = await getProfile(testUserId);
+              if (cloudProfile) {
+                const cloudUserInfo = {
+                  ...userInfo,
+                  nickname: cloudProfile.nickname || userInfo.nickname,
+                  signature: cloudProfile.signature || userInfo.signature,
+                  avatar: userInfo.avatar,
+                };
+                setUserInfo(cloudUserInfo);
+                localStorage.setItem('userInfo', JSON.stringify(cloudUserInfo));
+              }
+            }
+          })
         }
       }
+      
+      console.log('=== Profile loadData END ===');
     }
     
     loadData()
@@ -461,16 +515,34 @@ export function Profile() {
     window.location.reload();
   };
 
-  const handleSaveNickname = () => {
+  const handleSaveNickname = async () => {
     if (tempNickname.trim()) {
-      setUserInfo({ ...userInfo, nickname: tempNickname.trim() });
+      const newUserInfo = { ...userInfo, nickname: tempNickname.trim() };
+      setUserInfo(newUserInfo);
+      localStorage.setItem('userInfo', JSON.stringify(newUserInfo));
+      
+      // 同步到云端
+      const testUserId = localStorage.getItem('testUserId');
+      if (testUserId) {
+        const { updateProfile } = await import('../../lib/data');
+        await updateProfile(testUserId, { nickname: tempNickname.trim() });
+      }
     }
     setEditingNickname(false);
   };
 
-  const handleSaveSignature = () => {
+  const handleSaveSignature = async () => {
     if (tempSignature.trim()) {
-      setUserInfo({ ...userInfo, signature: tempSignature.trim() });
+      const newUserInfo = { ...userInfo, signature: tempSignature.trim() };
+      setUserInfo(newUserInfo);
+      localStorage.setItem('userInfo', JSON.stringify(newUserInfo));
+      
+      // 同步到云端
+      const testUserId = localStorage.getItem('testUserId');
+      if (testUserId) {
+        const { updateProfile } = await import('../../lib/data');
+        await updateProfile(testUserId, { signature: tempSignature.trim() });
+      }
     }
     setEditingSignature(false);
   };
@@ -726,7 +798,7 @@ export function Profile() {
 
       {/* 历史详情二次弹窗 */}
       <Dialog open={selectedRecord !== null} onOpenChange={(open) => !open && setSelectedRecord(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-xs mx-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">历史菜单详情</h3>
           </div>

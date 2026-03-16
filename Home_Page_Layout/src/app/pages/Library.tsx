@@ -6,7 +6,6 @@ import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent } from "../components/ui/dialog";
 import { getUserDishes, createUserDish, deleteUserDish } from "../../lib/data";
-import { saveBoardToCloud } from "../../lib/sync";
 
 interface Dish {
   name: string;
@@ -433,14 +432,6 @@ export function Library() {
       localStorage.setItem("todayBoardSources", JSON.stringify(sources));
       
       console.log('Board after add:', board);
-      
-      // Sync to cloud if logged in
-      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
-      const testUserId = localStorage.getItem('testUserId')
-      
-      if (isLoggedIn && testUserId) {
-        await saveBoardToCloud(testUserId, new Date().toISOString().split('T')[0], category, board[category])
-      }
       
       alert(`已将"${dish.name}"添加到${category}`);
     } else {

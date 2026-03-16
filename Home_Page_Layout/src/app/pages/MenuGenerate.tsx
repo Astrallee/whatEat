@@ -48,7 +48,7 @@ export function MenuGenerate() {
   }, []);
 
   const today = new Date();
-  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   const handleFavoriteSingle = async (dishName: string) => {
     const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
@@ -157,7 +157,7 @@ export function MenuGenerate() {
 
   // 保存并返回 - 清空桌板并保存历史
   const handleSaveAndReturn = async () => {
-    // 1. 保存到历史记录
+    // 1. 保存到历史记录（本地）
     const historyRecord = {
       id: Date.now().toString(),
       date: dateStr,
@@ -167,20 +167,17 @@ export function MenuGenerate() {
     
     const savedHistory = localStorage.getItem("historyBoard");
     const history = savedHistory ? JSON.parse(savedHistory) : [];
-    history.unshift(historyRecord);
-    localStorage.setItem("historyBoard", JSON.stringify(history));
     
-    // Sync history to cloud if logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
-    const testUserId = localStorage.getItem('testUserId')
-    if (isLoggedIn && testUserId) {
-      const { createHistory } = await import('../../lib/data')
-      await createHistory(testUserId, {
-        date: dateStr,
-        time_type: "晚餐",
-        dishes: selectedDishes.map(d => ({ name: d.name, category: d.category, tags: d.tags })),
-      })
+    // 检查是否已存在同日期的记录，避免重复添加
+    const existingIndex = history.findIndex((h: any) => h.date === dateStr);
+    if (existingIndex >= 0) {
+      // 更新已有记录
+      history[existingIndex] = historyRecord;
+    } else {
+      // 添加新记录
+      history.unshift(historyRecord);
     }
+    localStorage.setItem("historyBoard", JSON.stringify(history));
     
     // 2. 清空今日桌板
     const emptyBoard = {

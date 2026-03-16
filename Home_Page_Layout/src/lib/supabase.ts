@@ -54,34 +54,6 @@ export interface UserDish {
   created_at: number
 }
 
-export interface Board {
-  id: string
-  user_id: string
-  date: string
-  updated_at: number
-  client_at: number
-  deleted_at: number | null
-  is_synced: boolean
-  created_at: number
-}
-
-export interface BoardItem {
-  id: string
-  board_id: string
-  user_id: string
-  dish_id: string | null
-  dish_name: string
-  dish_category: string | null
-  dish_tags: string[] | null
-  dish_source: 'system' | 'user'
-  sort_order: number
-  updated_at: number
-  client_at: number
-  deleted_at: number | null
-  is_synced: boolean
-  created_at: number
-}
-
 export interface HistoryRecord {
   id: string
   user_id: string
@@ -119,8 +91,35 @@ export function generateUUID(): string {
   })
 }
 
-export function now(): number {
-  return Date.now()
+export function now(): string {
+  // 返回本地时间格式 "YYYY-MM-DD HH:mm:ss"
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// 格式化时间戳为可读格式
+export function formatTimestamp(timestamp: string | number): string {
+  if (!timestamp) return ''
+  // 如果是数字（秒级时间戳），转换为日期
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+  }
+  // 如果已经是字符串格式，直接返回
+  return timestamp
 }
 
 // 云端返回的数据强制标记为已同步

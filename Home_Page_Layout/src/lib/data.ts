@@ -188,124 +188,11 @@ export async function deleteUserDish(id: string): Promise<boolean> {
 }
 
 // ============================================
-// 数据服务 - 今日桌板
-// ============================================
-
-export async function getTodayBoard(userId: string, date: string): Promise<Board | null> {
-  const { data, error } = await supabase
-    .from('boards')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('date', date)
-    .single()
-  
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // 没有记录
-      return null
-    }
-    console.error('Error getting today board:', error)
-    return null
-  }
-  
-  return fromCloudRecord(data)
-}
-
-export async function createBoard(userId: string, date: string): Promise<Board | null> {
-  const board = {
-    id: generateUUID(),
-    user_id: userId,
-    date,
-    updated_at: now(),
-    client_at: now(),
-    created_at: now(),
-    deleted_at: null,
-    is_synced: false,
-  }
-  
-  const { data, error } = await supabase
-    .from('boards')
-    .insert(board)
-    .select()
-    .single()
-  
-  if (error) {
-    console.error('Error creating board:', error)
-    return null
-  }
-  
-  return data
-}
-
-// ============================================
-// 数据服务 - 桌板明细
-// ============================================
-
-export async function getBoardItems(boardId: string): Promise<BoardItem[]> {
-  const { data, error } = await supabase
-    .from('board_items')
-    .select('*')
-    .eq('board_id', boardId)
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-  
-  if (error) {
-    console.error('Error getting board items:', error)
-    return []
-  }
-  
-  return (data || []).map(fromCloudRecord)
-}
-
-export async function addBoardItem(boardId: string, userId: string, item: Omit<BoardItem, 'id' | 'board_id' | 'user_id' | 'updated_at' | 'client_at' | 'deleted_at' | 'is_synced' | 'created_at'>): Promise<BoardItem | null> {
-  const newItem = {
-    id: generateUUID(),
-    board_id: boardId,
-    user_id: userId,
-    ...item,
-    updated_at: now(),
-    client_at: now(),
-    created_at: now(),
-    deleted_at: null,
-    is_synced: false,
-  }
-  
-  const { data, error } = await supabase
-    .from('board_items')
-    .insert(newItem)
-    .select()
-    .single()
-  
-  if (error) {
-    console.error('Error adding board item:', error)
-    return null
-  }
-  
-  return data
-}
-
-export async function removeBoardItem(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('board_items')
-    .update({
-      deleted_at: now(),
-      is_synced: false,
-    })
-    .eq('id', id)
-  
-  if (error) {
-    console.error('Error removing board item:', error)
-    return false
-  }
-  
-  return true
-}
-
-// ============================================
 // 数据服务 - 历史记录
 // ============================================
 
 export async function getHistory(userId: string): Promise<HistoryRecord[]> {
+  console.log('getHistory called with userId:', userId);
   const { data, error } = await supabase
     .from('history')
     .select('*')
@@ -318,6 +205,25 @@ export async function getHistory(userId: string): Promise<HistoryRecord[]> {
     return []
   }
   
+  console.log('getHistory returned:', data?.length || 0, 'records');
+  return (data || []).map(fromCloudRecord)
+}
+
+export async function getFavorites(userId: string): Promise<Favorite[]> {
+  console.log('getFavorites called with userId:', userId);
+  const { data, error } = await supabase
+    .from('favorites')
+    .select('*')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error getting favorites:', error)
+    return []
+  }
+  
+  console.log('getFavorites returned:', data?.length || 0, 'records');
   return (data || []).map(fromCloudRecord)
 }
 
@@ -333,7 +239,10 @@ export async function createHistory(userId: string, record: Omit<HistoryRecord, 
     is_synced: false,
   }
   
-  console.log('Creating history in Supabase:', newRecord);
+  console.log('=== createHistory START ===')
+  console.log('userId:', userId)
+  console.log('newRecord:', JSON.stringify(newRecord))
+  console.log('Supabase URL:', supabase.supabaseUrl)
   
   const { data, error } = await supabase
     .from('history')
@@ -343,11 +252,15 @@ export async function createHistory(userId: string, record: Omit<HistoryRecord, 
   
   if (error) {
     console.error('Error creating history:', error)
-    alert('同步失败: ' + error.message);
+    console.error('Error code:', error.code)
+    console.error('Error message:', error.message)
+    console.error('Error details:', error.details)
+    console.error('Error hint:', error.hint)
     return null
   }
 
-  console.log('History created successfully:', data);
+  console.log('History created successfully:', data)
+  console.log('=== createHistory END ===')
   return data
 }
 
@@ -368,26 +281,6 @@ export async function deleteHistory(id: string): Promise<boolean> {
   return true
 }
 
-// ============================================
-// 数据服务 - 收藏
-// ============================================
-
-export async function getFavorites(userId: string): Promise<Favorite[]> {
-  const { data, error } = await supabase
-    .from('favorites')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-  
-  if (error) {
-    console.error('Error getting favorites:', error)
-    return []
-  }
-  
-  return (data || []).map(fromCloudRecord)
-}
-
 export async function addFavorite(userId: string, dishName: string, tags?: string[]): Promise<Favorite | null> {
   const favorite = {
     id: generateUUID(),
@@ -401,7 +294,9 @@ export async function addFavorite(userId: string, dishName: string, tags?: strin
     is_synced: false,
   }
   
-  console.log('Adding favorite to Supabase:', favorite);
+  console.log('=== addFavorite START ===')
+  console.log('userId:', userId)
+  console.log('favorite:', JSON.stringify(favorite))
   
   const { data, error } = await supabase
     .from('favorites')
@@ -411,11 +306,14 @@ export async function addFavorite(userId: string, dishName: string, tags?: strin
   
   if (error) {
     console.error('Error adding favorite:', error)
-    alert('同步失败: ' + error.message);
+    console.error('Error code:', error.code)
+    console.error('Error message:', error.message)
+    console.error('Error details:', error.details)
     return null
   }
 
-  console.log('Favorite added successfully:', data);
+  console.log('Favorite added successfully:', data)
+  console.log('=== addFavorite END ===')
   return data
 }
 

@@ -17,8 +17,21 @@ export function DishDetail() {
   const { name } = useParams();
   const [dish, setDish] = useState<Dish | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isInBoard, setIsInBoard] = useState(false);
 
   useEffect(() => {
+    // 检查是否已在桌板上
+    const savedBoard = localStorage.getItem("todayBoard");
+    if (savedBoard) {
+      const board = JSON.parse(savedBoard);
+      for (const category in board) {
+        if (Array.isArray(board[category]) && board[category].includes(name)) {
+          setIsInBoard(true);
+          break;
+        }
+      }
+    }
+    
     const savedDishes = localStorage.getItem("myDishes");
     if (savedDishes) {
       const dishes: Dish[] = JSON.parse(savedDishes);
@@ -174,9 +187,11 @@ export function DishDetail() {
           <Button variant="outline" className="flex-1" onClick={() => navigate(-1)}>
             返回
           </Button>
-          <Button className="flex-1" onClick={() => navigate("/")}>
-            加入桌板
-          </Button>
+          {!isInBoard && (
+            <Button className="flex-1" onClick={() => navigate("/")}>
+              加入桌板
+            </Button>
+          )}
         </div>
       </div>
     </div>
